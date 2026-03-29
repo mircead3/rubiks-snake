@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rubik's Snake</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-serif; }
+canvas { display:block; touch-action:none; }
+
+#ui {
+  position:absolute; top:20px; left:50%; transform:translateX(-30%);
+  text-align:center; user-select:none; white-space:nowrap;
+}
+#title-row { margin-bottom:12px; }
+#title-row h1 {
+  color:#d8d8ff; font-size:18px; font-weight:400; letter-spacing:5px;
+  text-transform:uppercase; text-shadow:0 0 20px rgba(120,120,255,0.5);
+  display:inline;
+}
+#version {
+  color:rgba(180,180,255,0.75); font-size:11px; letter-spacing:1px;
+  margin-left:10px; vertical-align:middle;
+}
+#controls-row {
+  display:flex; align-items:center; gap:8px; justify-content:center;
+  pointer-events:all; margin-bottom:8px; flex-wrap:wrap;
+}
+#controls-row label { color:#8899cc; font-size:12px; }
+#length-input {
+  width:48px; padding:7px 8px; background:rgba(20,20,40,0.9);
+  border:1px solid rgba(140,140,255,0.4); border-radius:6px;
+  color:#ddf; font-size:13px; text-align:center; outline:none;
+  -moz-appearance:textfield;
+}
+#length-input:focus { border-color:rgba(160,160,255,0.8); }
+#length-input::-webkit-outer-spin-button,
+#length-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+#code-wrapper {
+  position:relative; display:inline-block; vertical-align:middle;
+}
+#code-input {
+  font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
+  padding:4px 12px; background:rgba(20,20,40,0.9);
+  border:1px solid rgba(140,140,255,0.4); border-radius:6px;
+  color:transparent; caret-color:#ddf; outline:none; text-align:left;
+  resize:none; overflow:hidden; word-break:break-all;
+  box-sizing:border-box; vertical-align:top;
+}
+#code-input::placeholder { color:rgba(160,160,220,0.4); }
+#code-input:focus { border-color:rgba(160,160,255,0.8); }
+#code-input.invalid { border-color:rgba(255,80,80,0.8); }
+#code-overlay {
+  position:absolute; inset:0; pointer-events:none;
+  font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
+  padding:4px 12px; word-break:break-all; white-space:pre-wrap;
+  overflow:hidden; box-sizing:border-box; line-height:inherit;
+}
+#closed-indicator {
+  font-size:12px; color:#6f6; opacity:0; transition:opacity 0.2s;
+  pointer-events:none; white-space:nowrap;
+}
+#closed-indicator.visible { opacity:1; }
+
+.btn {
+  padding:7px 14px; border:1px solid rgba(140,140,255,0.35);
+  background:rgba(20,20,45,0.85); color:#99aaee; border-radius:6px;
+  cursor:pointer; font-size:12px; transition:all 0.15s; outline:none;
+}
+.btn:hover { background:rgba(50,50,120,0.7); color:#fff; }
+
+
+#left-panel {
+  position:absolute; top:20px; left:16px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+  pointer-events:none; user-select:none; width:160px;
+}
+#left-panel > * { pointer-events:all; }
+#file-tabs { display:flex; flex-direction:column; gap:4px; width:160px; }
+.file-tab {
+  padding:5px 10px; border:1px solid rgba(100,160,220,0.35);
+  background:rgba(20,30,50,0.8); color:#7799bb; border-radius:8px;
+  cursor:pointer; font-size:11px; text-align:left; outline:none; width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:all 0.15s;
+}
+.file-tab:hover { background:rgba(40,60,100,0.8); color:#aac; }
+.file-tab.active { background:rgba(20,35,60,0.9); color:#88bbff; border-color:rgba(80,140,220,0.55); }
+#active-figures {
+  display:flex; flex-direction:column; gap:5px;
+  max-height:55vh; overflow-y:auto; width:110px;
+}
+#active-figures:empty { display:none; }
+#active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
+#active-figures::-webkit-scrollbar { width:4px; }
+#active-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
+.file-btn.active { background:rgba(20,55,35,0.9); color:#88ffaa; border-color:rgba(80,200,120,0.55); }
+.file-btn {
+  padding:4px 8px; border:1px solid rgba(100,180,120,0.35);
+  background:rgba(20,40,25,0.7); color:#88bb99; border-radius:8px;
+  cursor:pointer; font-size:11px; line-height:1.4; transition:all 0.15s; outline:none;
+  text-align:left; width:100%; word-break:break-all;
+}
+.file-btn:hover, .file-btn.kb-focus { background:rgba(30,80,45,0.7); color:#cceecc; }
+
+#error-msg {
+  color:#ff8080; font-size:11px; min-height:16px; pointer-events:none;
+}
+#hint {
+  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  color:rgba(140,140,200,0.35); font-size:11px; letter-spacing:1.5px;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="title-row">
+    <h1>Rubik's Snake</h1>
+    <span id="version">v2.9</span>
+  </div>
+  <div id="controls-row">
+    <label for="length-input">Seg:</label>
+    <input id="length-input" type="number" min="2" max="200" value="24">
+    <div id="code-wrapper">
+      <textarea id="code-input" rows="1" placeholder="0=straight 1=90° 2=180° 3=270°" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <div id="code-overlay" aria-hidden="true"></div>
+    </div>
+    <button class="btn" onclick="applyCode()">Go</button>
+    <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
+    <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
+    <span id="closed-indicator">closed</span>
+  </div>
+  <div id="error-msg"></div>
+</div>
+
+
+<div id="left-panel">
+  <label class="btn" style="cursor:pointer;display:inline-block;">Load file<input type="file" id="file-input" style="display:none" multiple></label>
+  <div id="file-tabs"></div>
+  <div id="active-figures"></div>
+</div>
+
+<div id="hint">Drag to rotate &nbsp;&middot;&nbsp; Scroll to zoom</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+( function () {
+
+	// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+	//
+	//    Orbit - left mouse / touch: one-finger move
+	//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+	//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
+
+	const _changeEvent = {
+		type: 'change'
+	};
+	const _startEvent = {
+		type: 'start'
+	};
+	const _endEvent = {
+		type: 'end'
+	};
+
+	class OrbitControls extends THREE.EventDispatcher {
+
+		constructor( object, domElement ) {
+
+			super();
+			if ( domElement === undefined ) console.warn( 'THREE.OrbitControls: The second parameter "domElement" is now mandatory.' );
+			if ( domElement === document ) console.error( 'THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.' );
+			this.object = object;
+			this.domElement = domElement; // Set to false to disable this control
+
+			this.enabled = true; // "target" sets the location of focus, where the object orbits around
+
+			this.target = new THREE.Vector3(); // How far you can dolly in and out ( PerspectiveCamera only )
+
+			this.minDistance = 0;
+			this.maxDistance = Infinity; // How far you can zoom in and out ( OrthographicCamera only )
+
+			this.minZoom = 0;
+			this.maxZoom = Infinity; // How far you can orbit vertically, upper and lower limits.
+			// Range is 0 to Math.PI radians.
+
+			this.minPolarAngle = 0; // radians
+
+			this.maxPolarAngle = Math.PI; // radians
+			// How far you can orbit horizontally, upper and lower limits.
+			// If set, the interval [ min, max ] must be a sub-interval of [ - 2 PI, 2 PI ], with ( max - min < 2 PI )
+
+			this.minAzimuthAngle = - Infinity; // radians
+
+			this.maxAzimuthAngle = Infinity; // radians
+			// Set to true to enable damping (inertia)
+			// If damping is enabled, you must call controls.update() in your animation loop
+
+			this.enableDamping = false;
+			this.dampingFactor = 0.05; // This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+			// Set to false to disable zooming
+
+			this.enableZoom = true;
+			this.zoomSpeed = 1.0; // Set to false to disable rotating
+
+			this.enableRotate = true;
+			this.rotateSpeed = 1.0; // Set to false to disable panning
+
+			this.enablePan = true;
+			this.panSpeed = 1.0;
+			this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction camera.up
+
+			this.keyPanSpeed = 7.0; // pixels moved per arrow key push
+			// Set to true to automatically rotate around the target
+			// If auto-rotate is enabled, you must call controls.update() in your animation loop
+
+			this.autoRotate = false;
+			this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+			// The four arrow keys
+
+			this.keys = {
+				LEFT: 'ArrowLeft',
+				UP: 'ArrowUp',
+				RIGHT: 'ArrowRight',
+				BOTTOM: 'ArrowDown'
+			}; // Mouse buttons
+
+			this.mouseButtons = {
+				LEFT: THREE.MOUSE.ROTATE,
+				MIDDLE: THREE.MOUSE.DOLLY,
+				RIGHT: THREE.MOUSE.PAN
+			}; // Touch fingers
+
+			this.touches = {
+				ONE: THREE.TOUCH.ROTATE,
+				TWO: THREE.TOUCH.DOLLY_PAN
+			}; // for reset
+
+			this.target0 = this.target.clone();
+			this.position0 = this.object.position.clone();
+			this.zoom0 = this.object.zoom; // the target DOM element for key events
+
+			this._domElementKeyEvents = null; //
+			// public methods
+			//
+
+			this.getPolarAngle = function () {
+
+				return spherical.phi;
+
+			};
+
+			this.getAzimuthalAngle = function () {
+
+				return spherical.theta;
+
+			};
+
+			this.listenToKeyEvents = function ( domElement ) {
+
+				domElement.addEventListener( 'keydown', onKeyDown );
+				this._domElementKeyEvents = domElement;
+
+			};
+
+			this.saveState = function () {
+
+				scope.target0.copy( scope.target );
+				scope.position0.copy( scope.object.position );
+				scope.zoom0 = scope.object.zoom;
+
+			};
+
+			this.reset = function () {
+
+				scope.target.copy( scope.target0 );
+				scope.object.position.copy( scope.position0 );
+				scope.object.zoom = scope.zoom0;
+				scope.object.updateProjectionMatrix();
+				scope.dispatchEvent( _changeEvent );
+				scope.update();
+				state = STATE.NONE;
+
+			}; // this method is exposed, but perhaps it would be better if we can make it private...
+
+
+			this.update = function () {
+
+				const offset = new THREE.Vector3(); // so camera.up is the orbit axis
+
+				const quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
+				const quatInverse = quat.clone().invert();
+				const lastPosition = new THREE.Vector3();
+				const lastQuaternion = new THREE.Quaternion();
+				const twoPI = 2 * Math.PI;
+				return function update() {
+
+					const position = scope.object.position;
+					offset.copy( position ).sub( scope.target ); // rotate offset to "y-axis-is-up" space
+
+					offset.applyQuaternion( quat ); // angle from z-axis around y-axis
+
+					spherical.setFromVector3( offset );
+
+					if ( scope.autoRotate && state === STATE.NONE ) {
+
+						rotateLeft( getAutoRotationAngle() );
+
+					}
+
+					if ( scope.enableDamping ) {
+
+						spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+						spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+					} else {
+
+						spherical.theta += sphericalDelta.theta;
+						spherical.phi += sphericalDelta.phi;
+
+					} // restrict theta to be between desired limits
+
+
+					let min = scope.minAzimuthAngle;
+					let max = scope.maxAzimuthAngle;
+
+					if ( isFinite( min ) && isFinite( max ) ) {
+
+						if ( min < - Math.PI ) min += twoPI; else if ( min > Math.PI ) min -= twoPI;
+						if ( max < - Math.PI ) max += twoPI; else if ( max > Math.PI ) max -= twoPI;
+
+						if ( min <= max ) {
+
+							spherical.theta = Math.max( min, Math.min( max, spherical.theta ) );
+
+						} else {
+
+							spherical.theta = spherical.theta > ( min + max ) / 2 ? Math.max( min, spherical.theta ) : Math.min( max, spherical.theta );
+
+						}
+
+					} // restrict phi to be between desired limits
+
+
+					spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+					spherical.makeSafe();
+					spherical.radius *= scale; // restrict radius to be between desired limits
+
+					spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) ); // move target to panned location
+
+					if ( scope.enableDamping === true ) {
+
+						scope.target.addScaledVector( panOffset, scope.dampingFactor );
+
+					} else {
+
+						scope.target.add( panOffset );
+
+					}
+
+					offset.setFromSpherical( spherical ); // rotate offset back to "camera-up-vector-is-up" space
+
+					offset.applyQuaternion( quatInverse );
+					position.copy( scope.target ).add( offset );
+					scope.object.lookAt( scope.target );
+
+					if ( scope.enableDamping === true ) {
+
+						sphericalDelta.theta *= 1 - scope.dampingFactor;
+						sphericalDelta.phi *= 1 - scope.dampingFactor;
+						panOffset.multiplyScalar( 1 - scope.dampingFactor );
+
+					} else {
+
+						sphericalDelta.set( 0, 0, 0 );
+						panOffset.set( 0, 0, 0 );
+
+					}
+
+					scale = 1; // update condition is:
+					// min(camera displacement, camera rotation in radians)^2 > EPS
+					// using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+					if ( zoomChanged || lastPosition.distanceToSquared( scope.object.position ) > EPS || 8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+						scope.dispatchEvent( _changeEvent );
+						lastPosition.copy( scope.object.position );
+						lastQuaternion.copy( scope.object.quaternion );
+						zoomChanged = false;
+						return true;
+
+					}
+
+					return false;
+
+				};
+
+			}();
+
+			this.dispose = function () {
+
+				scope.domElement.removeEventListener( 'contextmenu', onContextMenu );
+				scope.domElement.removeEventListener( 'pointerdown', onPointerDown );
+				scope.domElement.removeEventListener( 'wheel', onMouseWheel );
+				scope.domElement.removeEventListener( 'touchstart', onTouchStart );
+				scope.domElement.removeEventListener( 'touchend', onTouchEnd );
+				scope.domElement.removeEventListener( 'touchmove', onTouchMove );
+				scope.domElement.ownerDocument.removeEventListener( 'pointermove', onPointerMove );
+				scope.domElement.ownerDocument.removeEventListener( 'pointerup', onPointerUp );
+
+				if ( scope._domElementKeyEvents !== null ) {
+
+					scope._domElementKeyEvents.removeEventListener( 'keydown', onKeyDown );
+
+				} //scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+			}; //
+			// internals
+			//
+
+
+			const scope = this;
+			const STATE = {
+				NONE: - 1,
+				ROTATE: 0,
+				DOLLY: 1,
+				PAN: 2,
+				TOUCH_ROTATE: 3,
+				TOUCH_PAN: 4,
+				TOUCH_DOLLY_PAN: 5,
+				TOUCH_DOLLY_ROTATE: 6
+			};
+			let state = STATE.NONE;
+			const EPS = 0.000001; // current position in spherical coordinates
+
+			const spherical = new THREE.Spherical();
+			const sphericalDelta = new THREE.Spherical();
+			let scale = 1;
+			const panOffset = new THREE.Vector3();
+			let zoomChanged = false;
+			const rotateStart = new THREE.Vector2();
+			const rotateEnd = new THREE.Vector2();
+			const rotateDelta = new THREE.Vector2();
+			const panStart = new THREE.Vector2();
+			const panEnd = new THREE.Vector2();
+			const panDelta = new THREE.Vector2();
+			const dollyStart = new THREE.Vector2();
+			const dollyEnd = new THREE.Vector2();
+			const dollyDelta = new THREE.Vector2();
+
+			function getAutoRotationAngle() {
+
+				return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+			}
+
+			function getZoomScale() {
+
+				return Math.pow( 0.95, scope.zoomSpeed );
+
+			}
+
+			function rotateLeft( angle ) {
+
+				sphericalDelta.theta -= angle;
+
+			}
+
+			function rotateUp( angle ) {
+
+				sphericalDelta.phi -= angle;
+
+			}
+
+			const panLeft = function () {
+
+				const v = new THREE.Vector3();
+				return function panLeft( distance, objectMatrix ) {
+
+					v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+
+					v.multiplyScalar( - distance );
+					panOffset.add( v );
+
+				};
+
+			}();
+
+			const panUp = function () {
+
+				const v = new THREE.Vector3();
+				return function panUp( distance, objectMatrix ) {
+
+					if ( scope.screenSpacePanning === true ) {
+
+						v.setFromMatrixColumn( objectMatrix, 1 );
+
+					} else {
+
+						v.setFromMatrixColumn( objectMatrix, 0 );
+						v.crossVectors( scope.object.up, v );
+
+					}
+
+					v.multiplyScalar( distance );
+					panOffset.add( v );
+
+				};
+
+			}(); // deltaX and deltaY are in pixels; right and down are positive
+
+
+			const pan = function () {
+
+				const offset = new THREE.Vector3();
+				return function pan( deltaX, deltaY ) {
+
+					const element = scope.domElement;
+
+					if ( scope.object.isPerspectiveCamera ) {
+
+						// perspective
+						const position = scope.object.position;
+						offset.copy( position ).sub( scope.target );
+						let targetDistance = offset.length(); // half of the fov is center to top of screen
+
+						targetDistance *= Math.tan( scope.object.fov / 2 * Math.PI / 180.0 ); // we use only clientHeight here so aspect ratio does not distort speed
+
+						panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+						panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+					} else if ( scope.object.isOrthographicCamera ) {
+
+						// orthographic
+						panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+						panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+					} else {
+
+						// camera neither orthographic nor perspective
+						console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+						scope.enablePan = false;
+
+					}
+
+				};
+
+			}();
+
+			function dollyOut( dollyScale ) {
+
+				if ( scope.object.isPerspectiveCamera ) {
+
+					scale /= dollyScale;
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+					scope.object.updateProjectionMatrix();
+					zoomChanged = true;
+
+				} else {
+
+					console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+					scope.enableZoom = false;
+
+				}
+
+			}
+
+			function dollyIn( dollyScale ) {
+
+				if ( scope.object.isPerspectiveCamera ) {
+
+					scale *= dollyScale;
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
+					scope.object.updateProjectionMatrix();
+					zoomChanged = true;
+
+				} else {
+
+					console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+					scope.enableZoom = false;
+
+				}
+
+			} //
+			// event callbacks - update the object state
+			//
+
+
+			function handleMouseDownRotate( event ) {
+
+				rotateStart.set( event.clientX, event.clientY );
+
+			}
+
+			function handleMouseDownDolly( event ) {
+
+				dollyStart.set( event.clientX, event.clientY );
+
+			}
+
+			function handleMouseDownPan( event ) {
+
+				panStart.set( event.clientX, event.clientY );
+
+			}
+
+			function handleMouseMoveRotate( event ) {
+
+				rotateEnd.set( event.clientX, event.clientY );
+				rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+				const element = scope.domElement;
+				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+				rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+				rotateStart.copy( rotateEnd );
+				scope.update();
+
+			}
+
+			function handleMouseMoveDolly( event ) {
+
+				dollyEnd.set( event.clientX, event.clientY );
+				dollyDelta.subVectors( dollyEnd, dollyStart );
+
+				if ( dollyDelta.y > 0 ) {
+
+					dollyOut( getZoomScale() );
+
+				} else if ( dollyDelta.y < 0 ) {
+
+					dollyIn( getZoomScale() );
+
+				}
+
+				dollyStart.copy( dollyEnd );
+				scope.update();
+
+			}
+
+			function handleMouseMovePan( event ) {
+
+				panEnd.set( event.clientX, event.clientY );
+				panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+				pan( panDelta.x, panDelta.y );
+				panStart.copy( panEnd );
+				scope.update();
+
+			}
+
+			function handleMouseUp( ) { // no-op
+			}
+
+			function handleMouseWheel( event ) {
+
+				if ( event.deltaY < 0 ) {
+
+					dollyIn( getZoomScale() );
+
+				} else if ( event.deltaY > 0 ) {
+
+					dollyOut( getZoomScale() );
+
+				}
+
+				scope.update();
+
+			}
+
+			function handleKeyDown( event ) {
+
+				let needsUpdate = false;
+
+				switch ( event.code ) {
+
+					case scope.keys.UP:
+						pan( 0, scope.keyPanSpeed );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.BOTTOM:
+						pan( 0, - scope.keyPanSpeed );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.LEFT:
+						pan( scope.keyPanSpeed, 0 );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.RIGHT:
+						pan( - scope.keyPanSpeed, 0 );
+						needsUpdate = true;
+						break;
+
+				}
+
+				if ( needsUpdate ) {
+
+					// prevent the browser from scrolling on cursor keys
+					event.preventDefault();
+					scope.update();
+
+				}
+
+			}
+
+			function handleTouchStartRotate( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+				} else {
+
+					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+					rotateStart.set( x, y );
+
+				}
+
+			}
+
+			function handleTouchStartPan( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					panStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+				} else {
+
+					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+					panStart.set( x, y );
+
+				}
+
+			}
+
+			function handleTouchStartDolly( event ) {
+
+				const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+				const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+				const distance = Math.sqrt( dx * dx + dy * dy );
+				dollyStart.set( 0, distance );
+
+			}
+
+			function handleTouchStartDollyPan( event ) {
+
+				if ( scope.enableZoom ) handleTouchStartDolly( event );
+				if ( scope.enablePan ) handleTouchStartPan( event );
+
+			}
+
+			function handleTouchStartDollyRotate( event ) {
+
+				if ( scope.enableZoom ) handleTouchStartDolly( event );
+				if ( scope.enableRotate ) handleTouchStartRotate( event );
+
+			}
+
+			function handleTouchMoveRotate( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+				} else {
+
+					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+					rotateEnd.set( x, y );
+
+				}
+
+				rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+				const element = scope.domElement;
+				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+				rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+				rotateStart.copy( rotateEnd );
+
+			}
+
+			function handleTouchMovePan( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					panEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+				} else {
+
+					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+					panEnd.set( x, y );
+
+				}
+
+				panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+				pan( panDelta.x, panDelta.y );
+				panStart.copy( panEnd );
+
+			}
+
+			function handleTouchMoveDolly( event ) {
+
+				const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+				const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+				const distance = Math.sqrt( dx * dx + dy * dy );
+				dollyEnd.set( 0, distance );
+				dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
+				dollyOut( dollyDelta.y );
+				dollyStart.copy( dollyEnd );
+
+			}
+
+			function handleTouchMoveDollyPan( event ) {
+
+				if ( scope.enableZoom ) handleTouchMoveDolly( event );
+				if ( scope.enablePan ) handleTouchMovePan( event );
+
+			}
+
+			function handleTouchMoveDollyRotate( event ) {
+
+				if ( scope.enableZoom ) handleTouchMoveDolly( event );
+				if ( scope.enableRotate ) handleTouchMoveRotate( event );
+
+			}
+
+			function handleTouchEnd( ) { // no-op
+			} //
+			// event handlers - FSM: listen for events and reset state
+			//
+
+
+			function onPointerDown( event ) {
+
+				if ( scope.enabled === false ) return;
+
+				switch ( event.pointerType ) {
+
+					case 'mouse':
+					case 'pen':
+						onMouseDown( event );
+						break;
+        // TODO touch
+
+				}
+
+			}
+
+			function onPointerMove( event ) {
+
+				if ( scope.enabled === false ) return;
+
+				switch ( event.pointerType ) {
+
+					case 'mouse':
+					case 'pen':
+						onMouseMove( event );
+						break;
+        // TODO touch
+
+				}
+
+			}
+
+			function onPointerUp( event ) {
+
+				switch ( event.pointerType ) {
+
+					case 'mouse':
+					case 'pen':
+						onMouseUp( event );
+						break;
+        // TODO touch
+
+				}
+
+			}
+
+			function onMouseDown( event ) {
+
+				// Prevent the browser from scrolling.
+				event.preventDefault(); // Manually set the focus since calling preventDefault above
+				// prevents the browser from setting it automatically.
+
+				scope.domElement.focus ? scope.domElement.focus() : window.focus();
+				let mouseAction;
+
+				switch ( event.button ) {
+
+					case 0:
+						mouseAction = scope.mouseButtons.LEFT;
+						break;
+
+					case 1:
+						mouseAction = scope.mouseButtons.MIDDLE;
+						break;
+
+					case 2:
+						mouseAction = scope.mouseButtons.RIGHT;
+						break;
+
+					default:
+						mouseAction = - 1;
+
+				}
+
+				switch ( mouseAction ) {
+
+					case THREE.MOUSE.DOLLY:
+						if ( scope.enableZoom === false ) return;
+						handleMouseDownDolly( event );
+						state = STATE.DOLLY;
+						break;
+
+					case THREE.MOUSE.ROTATE:
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enablePan === false ) return;
+							handleMouseDownPan( event );
+							state = STATE.PAN;
+
+						} else {
+
+							if ( scope.enableRotate === false ) return;
+							handleMouseDownRotate( event );
+							state = STATE.ROTATE;
+
+						}
+
+						break;
+
+					case THREE.MOUSE.PAN:
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enableRotate === false ) return;
+							handleMouseDownRotate( event );
+							state = STATE.ROTATE;
+
+						} else {
+
+							if ( scope.enablePan === false ) return;
+							handleMouseDownPan( event );
+							state = STATE.PAN;
+
+						}
+
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+				if ( state !== STATE.NONE ) {
+
+					scope.domElement.ownerDocument.addEventListener( 'pointermove', onPointerMove );
+					scope.domElement.ownerDocument.addEventListener( 'pointerup', onPointerUp );
+					scope.dispatchEvent( _startEvent );
+
+				}
+
+			}
+
+			function onMouseMove( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault();
+
+				switch ( state ) {
+
+					case STATE.ROTATE:
+						if ( scope.enableRotate === false ) return;
+						handleMouseMoveRotate( event );
+						break;
+
+					case STATE.DOLLY:
+						if ( scope.enableZoom === false ) return;
+						handleMouseMoveDolly( event );
+						break;
+
+					case STATE.PAN:
+						if ( scope.enablePan === false ) return;
+						handleMouseMovePan( event );
+						break;
+
+				}
+
+			}
+
+			function onMouseUp( event ) {
+
+				scope.domElement.ownerDocument.removeEventListener( 'pointermove', onPointerMove );
+				scope.domElement.ownerDocument.removeEventListener( 'pointerup', onPointerUp );
+				if ( scope.enabled === false ) return;
+				handleMouseUp( event );
+				scope.dispatchEvent( _endEvent );
+				state = STATE.NONE;
+
+			}
+
+			function onMouseWheel( event ) {
+
+				if ( scope.enabled === false || scope.enableZoom === false || state !== STATE.NONE && state !== STATE.ROTATE ) return;
+				event.preventDefault();
+				scope.dispatchEvent( _startEvent );
+				handleMouseWheel( event );
+				scope.dispatchEvent( _endEvent );
+
+			}
+
+			function onKeyDown( event ) {
+
+				if ( scope.enabled === false || scope.enablePan === false ) return;
+				handleKeyDown( event );
+
+			}
+
+			function onTouchStart( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault(); // prevent scrolling
+
+				switch ( event.touches.length ) {
+
+					case 1:
+						switch ( scope.touches.ONE ) {
+
+							case THREE.TOUCH.ROTATE:
+								if ( scope.enableRotate === false ) return;
+								handleTouchStartRotate( event );
+								state = STATE.TOUCH_ROTATE;
+								break;
+
+							case THREE.TOUCH.PAN:
+								if ( scope.enablePan === false ) return;
+								handleTouchStartPan( event );
+								state = STATE.TOUCH_PAN;
+								break;
+
+							default:
+								state = STATE.NONE;
+
+						}
+
+						break;
+
+					case 2:
+						switch ( scope.touches.TWO ) {
+
+							case THREE.TOUCH.DOLLY_PAN:
+								if ( scope.enableZoom === false && scope.enablePan === false ) return;
+								handleTouchStartDollyPan( event );
+								state = STATE.TOUCH_DOLLY_PAN;
+								break;
+
+							case THREE.TOUCH.DOLLY_ROTATE:
+								if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+								handleTouchStartDollyRotate( event );
+								state = STATE.TOUCH_DOLLY_ROTATE;
+								break;
+
+							default:
+								state = STATE.NONE;
+
+						}
+
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+				if ( state !== STATE.NONE ) {
+
+					scope.dispatchEvent( _startEvent );
+
+				}
+
+			}
+
+			function onTouchMove( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault(); // prevent scrolling
+
+				switch ( state ) {
+
+					case STATE.TOUCH_ROTATE:
+						if ( scope.enableRotate === false ) return;
+						handleTouchMoveRotate( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_PAN:
+						if ( scope.enablePan === false ) return;
+						handleTouchMovePan( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_DOLLY_PAN:
+						if ( scope.enableZoom === false && scope.enablePan === false ) return;
+						handleTouchMoveDollyPan( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_DOLLY_ROTATE:
+						if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+						handleTouchMoveDollyRotate( event );
+						scope.update();
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+			}
+
+			function onTouchEnd( event ) {
+
+				if ( scope.enabled === false ) return;
+				handleTouchEnd( event );
+				scope.dispatchEvent( _endEvent );
+				state = STATE.NONE;
+
+			}
+
+			function onContextMenu( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault();
+
+			} //
+
+
+			scope.domElement.addEventListener( 'contextmenu', onContextMenu );
+			scope.domElement.addEventListener( 'pointerdown', onPointerDown );
+			scope.domElement.addEventListener( 'wheel', onMouseWheel, {
+				passive: false
+			} );
+			scope.domElement.addEventListener( 'touchstart', onTouchStart, {
+				passive: false
+			} );
+			scope.domElement.addEventListener( 'touchend', onTouchEnd );
+			scope.domElement.addEventListener( 'touchmove', onTouchMove, {
+				passive: false
+			} ); // force an update at start
+
+			this.update();
+
+		}
+
+	} // This set of controls performs orbiting, dollying (zooming), and panning.
+	// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+	// This is very similar to OrbitControls, another set of touch behavior
+	//
+	//    Orbit - right mouse, or left mouse + ctrl/meta/shiftKey / touch: two-finger rotate
+	//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+	//    Pan - left mouse, or arrow keys / touch: one-finger move
+
+
+	class MapControls extends OrbitControls {
+
+		constructor( object, domElement ) {
+
+			super( object, domElement );
+			this.screenSpacePanning = false; // pan orthogonal to world-space direction camera.up
+
+			this.mouseButtons.LEFT = THREE.MOUSE.PAN;
+			this.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+			this.touches.ONE = THREE.TOUCH.PAN;
+			this.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+
+		}
+
+	}
+
+	THREE.MapControls = MapControls;
+	THREE.OrbitControls = OrbitControls;
+
+} )();
+
+</script>
+<script>
+
+// ─── SCENE SETUP ───────────────────────────────────────────────────────────────
+var renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+} catch(e) {
+  document.body.innerHTML = '<div style="color:#f88;padding:20px;font-size:16px">WebGL init failed: ' + e + '</div>';
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = false;
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
+renderer.domElement.addEventListener('webglcontextlost', function(e) {
+  e.preventDefault();
+  document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
+}, false);
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111118);
+
+var camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 0, 14);
+camera.lookAt(0, 0, 0);
+
+// OrbitControls inlined above but not used — dispose immediately to remove its event listeners.
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.dispose();
+
+// ─── INTERACTION: left-drag = rotate, right-drag = pan, wheel = zoom ───────
+var userInteracting = false;
+var _rotAxisY = new THREE.Vector3(0, 1, 0);
+var _rotAxisX = new THREE.Vector3(1, 0, 0);
+var _dragPrev = { x: 0, y: 0 };
+var _isPanning = false;
+var _cameraTarget = new THREE.Vector3(0, 0, 0); // where camera looks
+
+function _panScale() {
+  var d = camera.position.distanceTo(_cameraTarget);
+  return 2 * d * Math.tan(camera.fov * Math.PI / 360) / window.innerHeight;
+}
+function _applyPan(dx, dy) {
+  // Move camera (and its look-target) in camera's right/up plane
+  var fwd = new THREE.Vector3().subVectors(_cameraTarget, camera.position).normalize();
+  var right = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+  var up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  var s = _panScale();
+  camera.position.addScaledVector(right, -dx * s);
+  camera.position.addScaledVector(up,    dy * s);
+  _cameraTarget.addScaledVector(right, -dx * s);
+  _cameraTarget.addScaledVector(up,    dy * s);
+  camera.lookAt(_cameraTarget);
+}
+
+function onDragStart(x, y) {
+  userInteracting = true;
+  _dragPrev.x = x; _dragPrev.y = y;
+}
+function onDragMove(x, y) {
+  if (!userInteracting) return;
+  var dx = x - _dragPrev.x, dy = y - _dragPrev.y;
+  _dragPrev.x = x; _dragPrev.y = y;
+  if (_isPanning) {
+    _applyPan(dx, dy);
+  } else if (snakeGroup) {
+    snakeGroup.rotateOnWorldAxis(_rotAxisY, dx * 0.005);
+    snakeGroup.rotateOnWorldAxis(_rotAxisX, dy * 0.005);
+  }
+}
+function onDragEnd() { userInteracting = false; _isPanning = false; }
+
+renderer.domElement.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+renderer.domElement.addEventListener('mousedown', function(e) {
+  _isPanning = (e.button === 2 || e.shiftKey);
+  onDragStart(e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', function(e) { onDragMove(e.clientX, e.clientY); });
+window.addEventListener('mouseup',   onDragEnd);
+
+// Wheel zoom — proportional to deltaY so trackpad is gentle, mouse wheel reasonable
+renderer.domElement.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  camera.position.multiplyScalar(Math.pow(1.001, e.deltaY));
+  camera.position.clampLength(1, 300);
+}, { passive: false });
+
+// Touch: one finger = rotate, two fingers = pinch-zoom + pan
+var _pinchDist0 = 0;
+var _pinchMid0 = { x: 0, y: 0 };
+renderer.domElement.addEventListener('touchstart', function(e) {
+  if (e.touches.length === 1) {
+    _isPanning = false;
+    onDragStart(e.touches[0].clientX, e.touches[0].clientY);
+  } else if (e.touches.length === 2) {
+    userInteracting = true;
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    _pinchDist0 = Math.sqrt(dx*dx + dy*dy);
+    _pinchMid0.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    _pinchMid0.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+}, { passive: true });
+renderer.domElement.addEventListener('touchmove', function(e) {
+  if (e.touches.length === 1) {
+    onDragMove(e.touches[0].clientX, e.touches[0].clientY);
+  } else if (e.touches.length === 2) {
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    var midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    if (_pinchDist0 > 0) {
+      camera.position.multiplyScalar(_pinchDist0 / dist);
+      camera.position.clampLength(1, 300);
+    }
+    _applyPan(midX - _pinchMid0.x, midY - _pinchMid0.y);
+    _pinchDist0 = dist;
+    _pinchMid0.x = midX; _pinchMid0.y = midY;
+  }
+}, { passive: true });
+renderer.domElement.addEventListener('touchend', function(e) {
+  if (e.touches.length === 0) onDragEnd();
+}, { passive: true });
+
+// ─── LIGHTING ──────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x334466, 1.2));
+
+var keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+keyLight.position.set(8, 12, 10);
+scene.add(keyLight);
+
+var fillLight = new THREE.DirectionalLight(0x4466aa, 0.55);
+fillLight.position.set(-10, -4, -8);
+scene.add(fillLight);
+
+var rimLight = new THREE.DirectionalLight(0xaabbff, 0.35);
+rimLight.position.set(0, 6, -12);
+scene.add(rimLight);
+
+// ─── PRISM GEOMETRY ────────────────────────────────────────────────────────────
+// Right isosceles triangular prism, unit size.
+// Vertices: A(0,0,0) B(1,0,0) C(0,1,0) D(0,0,1) E(1,0,1) F(0,1,1)
+// Face normals (verified): y=0 square→(0,-1,0), x=0 square→(-1,0,0),
+//   hypotenuse→(1,1,0)/√2, z=0 triangle→(0,0,-1), z=1 triangle→(0,0,1)
+function createPrismGeometry() {
+  var geo = new THREE.BufferGeometry();
+  var s = 1 / Math.SQRT2;
+  var A=[0,0,0], B=[1,0,0], C=[0,1,0], D=[0,0,1], E=[1,0,1], F=[0,1,1];
+  var verts = [], norms = [];
+  function tri(p0, p1, p2, n) {
+    verts.push(p0[0],p0[1],p0[2], p1[0],p1[1],p1[2], p2[0],p2[1],p2[2]);
+    norms.push(n[0],n[1],n[2],    n[0],n[1],n[2],    n[0],n[1],n[2]);
+  }
+  tri(A,B,E, [0,-1,0]); tri(A,E,D, [0,-1,0]);  // y=0 square
+  tri(A,D,F, [-1,0,0]); tri(A,F,C, [-1,0,0]);  // x=0 square
+  tri(B,C,F, [s,s,0]);  tri(B,F,E, [s,s,0]);   // hypotenuse
+  tri(A,C,B, [0,0,-1]);                          // z=0 end
+  tri(D,E,F, [0,0,1]);                           // z=1 end
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(norms, 3));
+  return geo;
+}
+var BASE_GEO = createPrismGeometry();
+
+var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
+var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
+
+// ─── CHAIN BUILDING ────────────────────────────────────────────────────────────
+// Notation: 0=straight, 1=90°, 2=180°(fold), 3=270°
+// Internal theta = (2 - digit) * PI/2  →  0→PI, 1→PI/2, 2→0, 3→-PI/2
+// Even joints: connect through y=0 face, rotate around Y
+//   J = Trans(0.5,0,0.5)·RotY(θ)·RotX(π)·Trans(-0.5,0,-0.5)
+// Odd joints: connect through x=0 face, rotate around X
+//   J = Trans(0,0.5,0.5)·RotX(θ)·RotY(π)·Trans(0,-0.5,-0.5)
+function buildChain(digits) {
+  var transforms = [];
+  var cur = new THREE.Matrix4();
+  transforms.push(cur.clone());
+
+  for (var i = 0; i < digits.length; i++) {
+    var theta = (2 - digits[i]) * Math.PI / 2;
+    var J = new THREE.Matrix4();
+
+    if (i % 2 === 0) {
+      var T1 = new THREE.Matrix4().makeTranslation( 0.5, 0,  0.5);
+      var Ry = new THREE.Matrix4().makeRotationY(theta);
+      var Rx = new THREE.Matrix4().makeRotationX(Math.PI);
+      var T2 = new THREE.Matrix4().makeTranslation(-0.5, 0, -0.5);
+      J.copy(T1).multiply(Ry).multiply(Rx).multiply(T2);
+    } else {
+      var T1 = new THREE.Matrix4().makeTranslation(0,  0.5,  0.5);
+      var Rx = new THREE.Matrix4().makeRotationX(theta);
+      var Ry = new THREE.Matrix4().makeRotationY(Math.PI);
+      var T2 = new THREE.Matrix4().makeTranslation(0, -0.5, -0.5);
+      J.copy(T1).multiply(Rx).multiply(Ry).multiply(T2);
+    }
+
+    cur = new THREE.Matrix4().multiplyMatrices(cur, J);
+    transforms.push(cur.clone());
+  }
+  return transforms;
+}
+
+// ─── SELF-INTERSECTION CHECK ───────────────────────────────────────────────────
+// Sample interior points strictly inside each prism (local coords).
+var SAMPLES_LOCAL = [
+  new THREE.Vector3(0.20, 0.20, 0.50),
+  new THREE.Vector3(0.35, 0.10, 0.25),
+  new THREE.Vector3(0.10, 0.35, 0.25),
+  new THREE.Vector3(0.35, 0.10, 0.75),
+  new THREE.Vector3(0.10, 0.35, 0.75),
+];
+
+function ptInsidePrism(worldPt, invTransform) {
+  var p = worldPt.clone().applyMatrix4(invTransform);
+  var eps = 0.08;
+  return p.x > eps && p.y > eps && p.z > eps && p.z < 1-eps && (p.x + p.y) < 1-eps;
+}
+
+function checkIntersection(transforms) {
+  var n = transforms.length;
+  // Precompute: world-space samples and inverse transforms for each piece
+  var wsamples = [];
+  var invT = [];
+  for (var i = 0; i < n; i++) {
+    var inv = new THREE.Matrix4().copy(transforms[i]).invert();
+    invT.push(inv);
+    var pts = [];
+    for (var k = 0; k < SAMPLES_LOCAL.length; k++) {
+      pts.push(SAMPLES_LOCAL[k].clone().applyMatrix4(transforms[i]));
+    }
+    wsamples.push(pts);
+  }
+  // Check all non-adjacent-3 pairs
+  for (var i = 0; i < n; i++) {
+    for (var j = i + 3; j < n; j++) {
+      for (var k = 0; k < wsamples[i].length; k++) {
+        if (ptInsidePrism(wsamples[i][k], invT[j])) return { hit: true, a: i, b: j };
+      }
+      for (var k = 0; k < wsamples[j].length; k++) {
+        if (ptInsidePrism(wsamples[j][k], invT[i])) return { hit: true, a: i, b: j };
+      }
+    }
+  }
+  return { hit: false };
+}
+
+// ─── CLOSED LOOP DETECTION ─────────────────────────────────────────────────────
+function isClosed(digits) {
+  var transforms = buildChain(digits);
+  var last = transforms[transforms.length - 1];
+  var invLast = new THREE.Matrix4().copy(last).invert();
+  var closeJointIdx = digits.length;
+  for (var d = 0; d < 4; d++) {
+    var theta = (2 - d) * Math.PI / 2;
+    var J = new THREE.Matrix4();
+    if (closeJointIdx % 2 === 0) {
+      var T1 = new THREE.Matrix4().makeTranslation( 0.5, 0,  0.5);
+      var Ry = new THREE.Matrix4().makeRotationY(theta);
+      var Rx = new THREE.Matrix4().makeRotationX(Math.PI);
+      var T2 = new THREE.Matrix4().makeTranslation(-0.5, 0, -0.5);
+      J.copy(T1).multiply(Ry).multiply(Rx).multiply(T2);
+    } else {
+      var T1 = new THREE.Matrix4().makeTranslation(0,  0.5,  0.5);
+      var Rx = new THREE.Matrix4().makeRotationX(theta);
+      var Ry = new THREE.Matrix4().makeRotationY(Math.PI);
+      var T2 = new THREE.Matrix4().makeTranslation(0, -0.5, -0.5);
+      J.copy(T1).multiply(Rx).multiply(Ry).multiply(T2);
+    }
+    var diff = 0;
+    var je = J.elements, ie = invLast.elements;
+    for (var k = 0; k < 16; k++) diff = Math.max(diff, Math.abs(je[k] - ie[k]));
+    if (diff < 1e-6) return true;
+  }
+  return false;
+}
+
+// ─── CUBE-CRACK DETECTION ──────────────────────────────────────────────────────
+// Two pieces form a cube when T_i⁻¹·T_j ≈ M_c, where M_c maps the companion
+// prism (occupying the x+y≥1 half of a unit cube) into piece i's local frame.
+// M_c = rot180°Z + translate(1,1,0):  (x,y,z) → (1-x, 1-y, z)
+var _M_c = new THREE.Matrix4().set(-1,0,0,1, 0,-1,0,1, 0,0,1,0, 0,0,0,1);
+var _CRACK_MAT = new THREE.LineBasicMaterial({ color: 0x111111 });
+var _END_MAT = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide });
+
+function buildCubeCracks(transforms) {
+  var positions = [];
+  var n = transforms.length;
+  var inv_i = new THREE.Matrix4();
+  var rel   = new THREE.Matrix4();
+  var mc    = _M_c.elements;
+  var nz0   = new THREE.Vector3();
+  var nz1   = new THREE.Vector3();
+  var eps   = 0.003;
+
+  for (var i = 0; i < n; i++) {
+    inv_i.copy(transforms[i]).invert();
+    for (var j = i + 2; j < n; j++) {
+      rel.multiplyMatrices(inv_i, transforms[j]);
+      var te = rel.elements, diff = 0;
+      for (var k = 0; k < 16; k++) diff = Math.max(diff, Math.abs(te[k] - mc[k]));
+      if (diff > 1e-4) continue;
+
+      // Piece i and j form a cube — crack lines are B→C (z=0 face) and E→F (z=1 face)
+      // Push each line slightly outward along the face normal to avoid z-fighting
+      nz0.set(0,0,-1).transformDirection(transforms[i]);
+      nz1.set(0,0, 1).transformDirection(transforms[i]);
+
+      var B = new THREE.Vector3(1,0,0).applyMatrix4(transforms[i]).addScaledVector(nz0, eps);
+      var C = new THREE.Vector3(0,1,0).applyMatrix4(transforms[i]).addScaledVector(nz0, eps);
+      var E = new THREE.Vector3(1,0,1).applyMatrix4(transforms[i]).addScaledVector(nz1, eps);
+      var F = new THREE.Vector3(0,1,1).applyMatrix4(transforms[i]).addScaledVector(nz1, eps);
+      positions.push(B.x,B.y,B.z, C.x,C.y,C.z, E.x,E.y,E.z, F.x,F.y,F.z);
+    }
+  }
+  return positions;
+}
+
+function buildEndMarkers(transforms) {
+  var group = new THREE.Group();
+  var up = new THREE.Vector3(0, 0, 1);
+  var eps = 0.01;
+  var n = transforms.length;
+  // Even joints use the y=0 face; odd joints use the x=0 face.
+  // Joint 0 (between piece 0 and piece 1) is always even → piece 0's y=0 is used → x=0 is free.
+  // Last joint index = n-2: if even → last piece's y=0 is used → x=0 free; if odd → x=0 used → y=0 free.
+  var lastJointEven = (n - 2) % 2 === 0;
+  var pairs = [
+    { T: transforms[0],   lp: new THREE.Vector3(0,   0.5, 0.5), ln: new THREE.Vector3(-1, 0,  0) }, // x=0 face
+    { T: transforms[n-1], lp: lastJointEven ? new THREE.Vector3(0,   0.5, 0.5) : new THREE.Vector3(0.5, 0, 0.5),
+                          ln: lastJointEven ? new THREE.Vector3(-1, 0,  0)    : new THREE.Vector3(0, -1, 0)  },
+  ];
+  for (var p = 0; p < pairs.length; p++) {
+    var d = pairs[p];
+    var norm = d.ln.clone().transformDirection(d.T);
+    var pos  = d.lp.clone().applyMatrix4(d.T).addScaledVector(norm, eps);
+    var geo  = new THREE.CircleGeometry(0.2, 48); // new geo each time — avoids disposal on rebuild
+    var mesh = new THREE.Mesh(geo, _END_MAT);
+    mesh.position.copy(pos);
+    mesh.quaternion.setFromUnitVectors(up, norm);
+    group.add(mesh);
+  }
+  return group;
+}
+
+function buildSeamLines(transforms) {
+  var positions = [];
+  var n = transforms.length;
+  var eps = 0.003, matchEps = 1e-4;
+  var S2 = 1/Math.SQRT2;
+  // Each face: local normal + all 4 edges [x0,y0,z0,x1,y1,z1]
+  var faceDefs = [
+    { norm:[0,-1,0],  edges:[[0,0,0,1,0,0],[0,0,1,1,0,1],[0,0,0,0,0,1],[1,0,0,1,0,1]] },  // y=0
+    { norm:[-1,0,0],  edges:[[0,0,0,0,1,0],[0,0,1,0,1,1],[0,0,0,0,0,1],[0,1,0,0,1,1]] },  // x=0
+    { norm:[S2,S2,0], edges:[[1,0,0,0,1,0],[1,0,1,0,1,1],[1,0,0,1,0,1],[0,1,0,0,1,1]] },  // hyp
+  ];
+  var ni=new THREE.Vector3(), nj=new THREE.Vector3();
+  var p0i=new THREE.Vector3(), p1i=new THREE.Vector3();
+  var p0j=new THREE.Vector3(), p1j=new THREE.Vector3();
+  var seen={};
+
+  for (var i=0; i<n; i++) {
+    for (var j=i+1; j<n; j++) {
+      for (var fi=0; fi<faceDefs.length; fi++) {
+        var f=faceDefs[fi];
+        ni.set(f.norm[0],f.norm[1],f.norm[2]).transformDirection(transforms[i]);
+        nj.set(f.norm[0],f.norm[1],f.norm[2]).transformDirection(transforms[j]);
+        if (ni.dot(nj) < 1-1e-4) continue;
+        for (var ei=0; ei<f.edges.length; ei++) {
+          var ec=f.edges[ei];
+          p0i.set(ec[0],ec[1],ec[2]).applyMatrix4(transforms[i]);
+          p1i.set(ec[3],ec[4],ec[5]).applyMatrix4(transforms[i]);
+          for (var ej=0; ej<f.edges.length; ej++) {
+            var ec2=f.edges[ej];
+            p0j.set(ec2[0],ec2[1],ec2[2]).applyMatrix4(transforms[j]);
+            p1j.set(ec2[3],ec2[4],ec2[5]).applyMatrix4(transforms[j]);
+            if ((p0i.distanceTo(p0j)<matchEps && p1i.distanceTo(p1j)<matchEps) ||
+                (p0i.distanceTo(p1j)<matchEps && p1i.distanceTo(p0j)<matchEps)) {
+              var r=1/matchEps;
+              var k=[p0i.x,p0i.y,p0i.z,p1i.x,p1i.y,p1i.z].map(function(v){return Math.round(v*r);}).join(',');
+              if (!seen[k]) {
+                seen[k]=true;
+                var Q0=p0i.clone().addScaledVector(ni,eps);
+                var Q1=p1i.clone().addScaledVector(ni,eps);
+                positions.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return positions;
+}
+
+// ─── SEGMENT NUMBER LABELS ────────────────────────────────────────────────────
+var showNumbers = false;
+var numberGroup  = null;
+var _spriteUpdateData = []; // precomputed face data for per-frame positioning
+
+// Face centers and outward normals in local prism coords
+var _FACES_LOCAL = [
+  { pos: new THREE.Vector3(0.5,  0,   0.5), norm: new THREE.Vector3( 0, -1,  0) }, // y=0
+  { pos: new THREE.Vector3(0,    0.5, 0.5), norm: new THREE.Vector3(-1,  0,  0) }, // x=0
+  { pos: new THREE.Vector3(0.5,  0.5, 0.5), norm: new THREE.Vector3( 1/Math.SQRT2, 1/Math.SQRT2, 0) }, // hypotenuse
+  { pos: new THREE.Vector3(1/3,  1/3, 0),   norm: new THREE.Vector3( 0,  0, -1) }, // z=0 triangle
+  { pos: new THREE.Vector3(1/3,  1/3, 1),   norm: new THREE.Vector3( 0,  0,  1) }, // z=1 triangle
+];
+var _camLocal  = new THREE.Vector3();
+var _toCamera  = new THREE.Vector3();
+
+function makeNumTexture(n) {
+  var label = String(n);
+  var canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold ' + (label.length > 2 ? '18px' : '22px') + ' sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, 32, 32);
+  var tex = new THREE.CanvasTexture(canvas);
+  return tex;
+}
+
+function buildNumberSprites(transforms) {
+  _spriteUpdateData = [];
+  var g = new THREE.Group();
+  g.visible = showNumbers;
+  for (var i = 0; i < transforms.length; i++) {
+    var tex = makeNumTexture(i + 1);
+    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, opacity: 0.95 });
+    var sprite = new THREE.Sprite(mat);
+    sprite.scale.setScalar(0.5);
+    g.add(sprite);
+    // Precompute face world-positions and normals in snakeGroup local space
+    var faces = [];
+    for (var f = 0; f < _FACES_LOCAL.length; f++) {
+      faces.push({
+        pos:  _FACES_LOCAL[f].pos.clone().applyMatrix4(transforms[i]),
+        norm: _FACES_LOCAL[f].norm.clone().transformDirection(transforms[i])
+      });
+    }
+    _spriteUpdateData.push({ sprite: sprite, faces: faces });
+  }
+  return g;
+}
+
+function updateNumberSprites() {
+  if (!showNumbers || !numberGroup || !numberGroup.visible || !snakeGroup) return;
+  // Camera position in snakeGroup local space (accounts for figure rotation)
+  _camLocal.copy(camera.position);
+  snakeGroup.worldToLocal(_camLocal);
+  for (var i = 0; i < _spriteUpdateData.length; i++) {
+    var sd = _spriteUpdateData[i];
+    var bestDot = -1, bestFace = sd.faces[0];
+    for (var f = 0; f < sd.faces.length; f++) {
+      _toCamera.subVectors(_camLocal, sd.faces[f].pos).normalize();
+      var dot = _toCamera.dot(sd.faces[f].norm);
+      if (dot > bestDot) { bestDot = dot; bestFace = sd.faces[f]; }
+    }
+    sd.sprite.visible = bestDot > 0.25;
+    if (sd.sprite.visible) {
+      sd.sprite.position.copy(bestFace.pos).addScaledVector(bestFace.norm, 0.04);
+    }
+  }
+}
+
+// ─── SCENE GRAPH ───────────────────────────────────────────────────────────────
+var snakeGroup = null;
+var LOCAL_CORNERS_ARR = [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,0,1],[0,1,1]];
+
+function buildSnake(digits) {
+  // Remove old snake
+  if (snakeGroup) {
+    snakeGroup.traverse(function(o) {
+    if (o.geometry) o.geometry.dispose();
+    if (o.isSprite && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+  });
+    scene.remove(snakeGroup);
+    snakeGroup = null;
+  }
+
+  var transforms = buildChain(digits);
+
+  // Closed-loop indicator
+  var figureClosed = isClosed(digits);
+  var closedEl = document.getElementById('closed-indicator');
+  if (figureClosed) closedEl.classList.add('visible');
+  else closedEl.classList.remove('visible');
+
+  // Self-intersection check
+  try {
+    var result = checkIntersection(transforms);
+    if (result.hit) {
+      setError('Self-intersection: pieces ' + result.a + ' and ' + result.b + ' overlap.');
+      codeInput.classList.add('invalid');
+    }
+  } catch(e) {
+    // Intersection check failed; skip it and render anyway
+    console.warn('Intersection check error:', e);
+  }
+
+  // Compute bounding box for centering & camera fit
+  var box = new THREE.Box3();
+  var tmpV = new THREE.Vector3();
+  for (var i = 0; i < transforms.length; i++) {
+    for (var c = 0; c < LOCAL_CORNERS_ARR.length; c++) {
+      tmpV.set(LOCAL_CORNERS_ARR[c][0], LOCAL_CORNERS_ARR[c][1], LOCAL_CORNERS_ARR[c][2]);
+      tmpV.applyMatrix4(transforms[i]);
+      box.expandByPoint(tmpV);
+    }
+  }
+  var center = new THREE.Vector3();
+  box.getCenter(center);
+
+  snakeGroup = new THREE.Group();
+  for (var i = 0; i < transforms.length; i++) {
+    var mesh = new THREE.Mesh(BASE_GEO.clone(), i % 2 === 0 ? MAT_A : MAT_B);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.copy(transforms[i]);
+    mesh.matrixWorldNeedsUpdate = true;
+    snakeGroup.add(mesh);
+  }
+  // Segment number sprites
+  numberGroup = buildNumberSprites(transforms);
+  snakeGroup.add(numberGroup);
+
+  // Cube-crack lines
+  var crackPos = buildCubeCracks(transforms);
+  if (crackPos.length > 0) {
+    var crackGeo = new THREE.BufferGeometry();
+    crackGeo.setAttribute('position', new THREE.Float32BufferAttribute(crackPos, 3));
+    snakeGroup.add(new THREE.LineSegments(crackGeo, _CRACK_MAT));
+  }
+
+  // Seam lines between coplanar adjacent rectangular faces
+  var seamPos = buildSeamLines(transforms);
+  if (seamPos.length > 0) {
+    var seamGeo = new THREE.BufferGeometry();
+    seamGeo.setAttribute('position', new THREE.Float32BufferAttribute(seamPos, 3));
+    snakeGroup.add(new THREE.LineSegments(seamGeo, _CRACK_MAT));
+  }
+
+  // End markers on open figures
+  if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
+
+  snakeGroup.position.set(-center.x, -center.y, -center.z);
+  scene.add(snakeGroup);
+
+  // Fit camera distance to bounding box
+  var size = new THREE.Vector3();
+  box.getSize(size);
+  var maxDim = Math.max(size.x, size.y, size.z);
+  var dist = (maxDim / 2) / Math.tan(camera.fov * Math.PI / 360) * 1.65;
+  camera.position.set(dist * 0.55, dist * 0.35, dist * 0.85);
+  _cameraTarget.set(0, 0, 0);
+  camera.lookAt(0, 0, 0);
+}
+
+// ─── UI HELPERS ────────────────────────────────────────────────────────────────
+var codeInput   = document.getElementById('code-input');
+var lengthInput = document.getElementById('length-input');
+var errorDiv    = document.getElementById('error-msg');
+
+function setError(msg) {
+  errorDiv.textContent = msg;
+}
+function clearError() {
+  errorDiv.textContent = '';
+  codeInput.classList.remove('invalid');
+}
+
+function getLength() {
+  var v = parseInt(lengthInput.value, 10);
+  return (isNaN(v) || v < 2) ? 24 : v;
+}
+
+var _CODE_COLORS = ['#7ec8ff', '#ffc87e'];
+function updateCodeDisplay() {
+  var code = codeInput.value;
+  var html = '', gi = 0;
+  for (var i = 0; i < code.length; i++) {
+    if (code[i] === '\n') { html += '\n'; continue; }
+    var col = _CODE_COLORS[Math.floor(gi / 3) % 2];
+    html += '<span style="color:' + col + '">' + code[i] + '</span>';
+    gi++;
+  }
+  document.getElementById('code-overlay').innerHTML = html;
+}
+
+function autoResizeCode() {
+  var chars = Math.min(getLength() - 1, 48);
+  codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 28px)';
+  codeInput.style.height = 'auto';
+  codeInput.style.height = codeInput.scrollHeight + 'px';
+  updateCodeDisplay();
+}
+
+function parseCode(str) {
+  var n = getLength();
+  var expected = n - 1;
+  if (str.length !== expected) {
+    return { err: 'Need exactly ' + expected + ' digit' + (expected !== 1 ? 's' : '') + ' for ' + n + ' segments (got ' + str.length + ').' };
+  }
+  var digits = [];
+  for (var i = 0; i < str.length; i++) {
+    var d = parseInt(str[i], 10);
+    if (isNaN(d) || d < 0 || d > 3) {
+      return { err: 'Each digit must be 0, 1, 2, or 3.' };
+    }
+    digits.push(d);
+  }
+  return { digits: digits };
+}
+
+function applyCode() {
+  var raw = codeInput.value.replace(/\s+/g, '');
+  if (raw.length === 0) { setError('Enter a code.'); codeInput.classList.add('invalid'); return; }
+  var r = parseCode(raw);
+  if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
+  clearError();
+  try { buildSnake(r.digits); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
+}
+
+
+codeInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyCode(); } });
+codeInput.addEventListener('input', autoResizeCode);
+lengthInput.addEventListener('change', function() {
+  autoResizeCode();
+  codeInput.value = '';
+  clearError();
+});
+
+// ─── RENDER LOOP ───────────────────────────────────────────────────────────────
+var lastTime = 0;
+function animate(now) {
+  requestAnimationFrame(animate);
+  try {
+    var dt = Math.min(((now || 0) - lastTime) / 1000, 0.1);
+    lastTime = now || 0;
+    if (autoRotate && !userInteracting && snakeGroup) {
+      snakeGroup.rotateOnWorldAxis(_rotAxisY, dt * 0.18);
+    }
+    updateNumberSprites();
+    renderer.render(scene, camera);
+  } catch(e) {
+    var em = document.getElementById('error-msg');
+    if (em) em.textContent = 'Render error: ' + e.message;
+    console.error('Render loop error:', e);
+  }
+}
+
+window.addEventListener('resize', function() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── FILE LOADER ───────────────────────────────────────────────────────────────
+function loadBuiltinFile(name, text) {
+  var lines = text.split(/\r?\n/);
+  var figures = [];
+  for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
+  if (figures.length > 0) { _loadedFileNames.push(name); addFileEntry(name, figures); }
+}
+
+function parseFileLine(line) {
+  line = line.trim();
+  if (!line || line[0] === '#') return null;           // blank or comment
+  var m = line.match(/^(\S+)\s+([0-3]+)/);             // name  <whitespace>  digits  (rest ignored)
+  if (!m) return null;                                 // ignore lines not in this format
+  return { name: m[1], code: m[2] };
+}
+
+function loadFigure(name, code) {
+  _activeFigureName = name;
+  document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
+    b.classList.toggle('active', b.textContent === name);
+  });
+  var n = code.length + 1;
+  lengthInput.value = n;
+  codeInput.value = code;
+  autoResizeCode();
+  clearError();
+  buildSnake(code.split('').map(Number));
+}
+
+var hoveredFigureBtn = null;
+function _setHoveredFigureBtn(btn) {
+  if (hoveredFigureBtn && hoveredFigureBtn !== btn) hoveredFigureBtn.classList.remove('kb-focus');
+  hoveredFigureBtn = btn;
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && hoveredFigureBtn) { hoveredFigureBtn.click(); e.preventDefault(); return; }
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && hoveredFigureBtn) {
+    var af = document.getElementById('active-figures');
+    var btns = Array.from(af.querySelectorAll('.file-btn'));
+    var idx = btns.indexOf(hoveredFigureBtn);
+    var next = e.key === 'ArrowDown' ? btns[idx + 1] : btns[idx - 1];
+    if (next) {
+      _setHoveredFigureBtn(next);
+      next.classList.add('kb-focus');
+      next.scrollIntoView({ block: 'nearest' });
+    }
+    e.preventDefault();
+  }
+});
+
+var autoRotate = true;
+document.getElementById('toggle-autorotate').addEventListener('click', function() {
+  autoRotate = !autoRotate;
+  this.style.opacity = autoRotate ? '1' : '0.5';
+});
+
+document.getElementById('toggle-numbers').addEventListener('click', function() {
+  showNumbers = !showNumbers;
+  this.style.opacity = showNumbers ? '1' : '0.5';
+  if (numberGroup) numberGroup.visible = showNumbers;
+});
+document.getElementById('toggle-numbers').style.opacity = '0.5';
+
+var _loadedFileNames = [];
+var _activeFigureName = null;
+
+function _showFileTab(tab, figures) {
+  document.querySelectorAll('.file-tab').forEach(function(t) { t.classList.remove('active'); });
+  tab.classList.add('active');
+  var af = document.getElementById('active-figures');
+  af.innerHTML = '';
+  _setHoveredFigureBtn(null);
+  for (var i = 0; i < figures.length; i++) {
+    (function(fig) {
+      var btn = document.createElement('button');
+      btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
+      btn.textContent = fig.name;
+      btn.onclick = function() { loadFigure(fig.name, fig.code); };
+      btn.addEventListener('mouseenter', function() { _setHoveredFigureBtn(btn); });
+      btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
+      af.appendChild(btn);
+    })(figures[i]);
+  }
+}
+
+function addFileEntry(name, figures) {
+  var tab = document.createElement('button');
+  tab.className = 'file-tab';
+  tab.textContent = name.replace(/\.[^.]+$/, '');
+  tab.title = name;
+  tab.addEventListener('click', function() {
+    if (tab.classList.contains('active')) {
+      tab.classList.remove('active');
+      document.getElementById('active-figures').innerHTML = '';
+      _setHoveredFigureBtn(null);
+    } else {
+      _showFileTab(tab, figures);
+    }
+  });
+  document.getElementById('file-tabs').appendChild(tab);
+  // no auto-show — user clicks the tab to reveal figures
+}
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  for (var fi = 0; fi < e.target.files.length; fi++) {
+    (function(file) {
+      if (_loadedFileNames.indexOf(file.name) !== -1) {
+        setError(file.name + ' already loaded.'); return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        clearError();
+        var lines = ev.target.result.split(/\r?\n/);
+        var figures = [];
+        for (var i = 0; i < lines.length; i++) {
+          var fig = parseFileLine(lines[i]); if (fig) figures.push(fig);
+        }
+        if (figures.length === 0) { setError('No valid figures in ' + file.name); return; }
+        _loadedFileNames.push(file.name);
+        addFileEntry(file.name, figures);
+      };
+      reader.readAsText(file);
+    })(e.target.files[fi]);
+  }
+  e.target.value = '';
+});
+
+// ─── INIT ──────────────────────────────────────────────────────────────────────
+loadBuiltinFile('closed_snakes.txt', `Angel 01321113313113332130013
+Another_Figure 32100213321302013211320
+Ball 11331311313311331311313
+Beetle1 20202012302020220032100
+Beetle2 23103313113133131103121
+Blossom1 02013102031302013102031
+Blossom2 33211203210233211203210
+Boom 03231002203210220031210
+Bow2 33313111333131113331311
+Bud 33013211213231211213011
+Buds 32332112332312112332112
+Bug 13133313111313333113311
+Cactus 32120032102203210023210
+Camel 10212101213231210121003
+Candle_Stick 32301230121232301230121
+Cardboard 02202202123202202202321
+Casket 03101003123313112303102
+Cave 10023022013211332113200
+Chain_Link 20023321120020023321120
+Chick 11123232111233321212333
+Claw 01001003123313112300302
+Compact1 30022032123232123002001
+Compact2 02022032102202022032102
+Compact3 21002002202123202200200
+Compact4 21003232123000012300220
+Contact 20023323112331211200212
+Coronet 00110033001100330011003
+Cradle 33023133131131201133001
+Cross1 02022020002200020220202
+Cross_3D1 20123212123210212132312
+Cross_3D2 13233013211233213033231
+Crown1 30201003020130201003020
+Crown2 10220132111233321302203
+Crystal 10213121311331323132030
+Desk 11233112310220312331123
+Diving_Platform 30332001233311123002110
+Dog1 11313331131331113133031
+Double_Roof 03311313313113303123321
+Downwards 03212013211233213023210
+Dugout 13211313321302013001302
+Dumbbell 23230000121232100000032
+Embracement 02002321203232121023212
+Endless_Belt 01300031021303132313031
+Entrance 33111331311133313113331
+Fantasy 33120103232121030231112
+Flat_Top 20020010132112310120220
+Fly 03210232312121232323121
+Fountain 31311232311233112331212
+Gate 02201211233230220100200
+Globus 13023311313313113120130
+Grotto 00321203130220131023210
+Hat 01230131011022001101300
+Head_of_Devil 20101230121323321121300
+Heart 00123000212133020113232
+Hexagon 00003001000030010000300
+Hole_Middle1 03123321303101321123101
+Hole_Middle2 03101123101303101123101
+House_by_House 32323212121232323212121
+Infinity 33311331133333311331133
+Jewel 13012132331311213230130
+Jewelry 20012300230201212323020
+Just_Squares 11323212133211323212133
+Knot 33230313233112131012113
+Leaf 01230123030220030300200
+Long_Necked 20323212102032321230220
+Luna_Module 23313113133131123101303
+Mask1 10100003031012020020230
+Mask2 11233121020202032311233
+Memorial 20300220312132310220010
+Microscope 00210200220220220320032
+Miss_Piggy 03321011233112330321101
+Mole 01013120321023130301123
+Mouse 13333313110130331311111
+Mushroom 02300132113133212030220
+Nestled 30233112012301321131333
+New_Year 23130013121230002200012
+Obelisk 13232321200022000232121
+Phaser_Gun 00312101213231210121102
+Pitti 12002002003210020020023
+Platform 20000200220210312332130
+Pod_Racer 32030022031233210212020
+Propeller 00010313000103130001031
+Pyramid 03210321032102133321113
+Repetition 03330012302201230011102
+Revelation 00200231113311333120020
+Revolution 33210203211233210203211
+Ribbon 02022023313112331311202
+Rocket1 03010123012301230301032
+Roofed 10230201203210230201203
+Sheep 13311331311111313333313
+Shelter 02002000031131331311300
+Ship 21333321111303012303022
+Shrine 11213232310031212132331
+Small_Ship 30130310130130130310130
+Snowflake 33311113333111133331111
+Source 21020321233131123313112
+Speedboat1 00100321001230032100300
+Speedboat2 30213311103210333113201
+Spider 11003132030220102131003
+Stage 10323121312132313231210
+Summer_House 23012301232121032103232
+Svalbard 23011320321123321021330
+Symbol 11202202331311202202331
+Symmetry 10313031301230131013103
+Table_Fireworks 01321112310132111213012
+Tapering 00132302203210220121300
+Tea_Light_Stick 10220312331123311233112
+Telephone 00000011313300000011313
+Terraces 13013233231113331211213
+Three_Legged 02010123013012301301230
+Three_Peaks 10012321211233232123003
+Throne 02332303132312131012112
+To_the_Front 02133321302203320310203
+Top 23323001321131332121120
+Transport 00200002200022000220000
+Triangle 00000013000000130000001
+Triple 20232121202321202323212
+Turtle1 11131333233131123100310
+Twins 02032312120023231210200
+Two_Slants 22022002032321213232123
+Two_Wings 03022022022010321031032
+Up_and_Down 12020202023212020202023
+Upright 30023313033211013112001
+USS_Enterprise1 32121302201302201323210
+USS_Enterprise2 01232100220310220032123
+Viaduct 10120023212002123200210
+View1 01232100123311230032123
+View2 11301022012302203013302
+Well 31201321131332130231013
+Window 02002032102002002032102
+Windshield 22012332102032112302202
+Windwheel 12302112302112302112302
+Wings 10203212131133132321020
+Without_Name 21211233202123202112332
+X 30023112310220312331200`);
+loadBuiltinFile('open_snakes.txt', `Airplane 20001000220002002202100
+Bird 20220001112310132111200
+Bow1 12103313111233313112121
+Cat1 02202201022022022000001
+Cat2 33321303123301131331311
+Cat3 02202201022020020220000
+Cobra 01013211231030000200002
+Cook 00220101323022032310102
+Cross2 22102202022013022020220
+Crunch 21022022013112310132111
+DNA_Strand 12121212121212121212121
+Dog2 23332130312333030220220
+Dogface 00220113202202133022002
+Double_Peak 30020031302011323321123
+Doubled1 12132312121011323121323
+Doubled2 12132312111013323121323
+Duck 20001010032100123001010
+Esthetic 33211032123232123013211
+Face 01213233211213232323121
+Flying_Boat 10301030001230001030103
+Frog1 30311231001230031233101
+Frog2 33113232123010123011311
+Frog3 32313331111233331113121
+Furby 20321022022002012302002
+Giant_Cobra 03022022030002112102020
+Giraffe 00111231013211100000002
+Helix 11111111111111111111111
+Kink 02202022003210022020220
+Knot_on_Legs 22033210213331201233022
+Left_as_Right 12313013211233213013123
+Mountain 01321123103210312332130
+Mountains_Hard 02032312121232323121020
+No_Clue 01233303211233210111230
+Noname 01212321022022123230200
+Ostrich1 00220102202203022000002
+Ostrich2 20233313113133120200002
+Parrot 00001103210101012301302
+Penguin 02202203233313113133102
+Ra 21113133131123313113133
+Robot 01031113333211113331030
+Rocket2 20030100001230000301002
+Roofs 22103212323212123210322
+Row_Houses 32123232121232321212322
+Seal 33321110321033321302203
+Slide 13130131200200231301313
+Snowman 02202200022022000220220
+Square_Hole 20200220200200202200202
+Straight 00000000000000000000000
+Swan1 20211131331311120000022
+Swan2 02023323212132312123231
+Swimming_Bird 23022022013112310132111
+Terrier 20220200022020020220000
+Toad 32023321033211032112021
+Turkey 20000000233321303123330
+Turtle2 31311313321123101321110
+Valley 01232121310203132321230
+Waterfall 10321032103210321032103
+Wingnut 00002111213231211120000
+Wolf 00220200202202000220002
+Zigzag 01010101010101010101010`);
+loadBuiltinFile('long_snakes.txt', `car 33330220311032120220301131111010032312132300123212121212320220103331113330312331311313331133031032312113313113202200200310121303101321131331311
+dog 11302200310110220011011002201101300220310313313302203313330220111313313
+trefoil 101210300120110121210110210030121
+torus 000001011000100101010011100101010010001101000000000101100010010101001110010101001000110100000000010110001001010100111001010100100011010000000001011000100101010011100101010010001101000`);
+loadBuiltinFile('simple_loops.txt', `loop4 222
+loop6a 13131
+loop6b 12312
+loop8a 0123032
+loop8b 1232123
+loop10a 001230012
+loop10b 001310031
+loop10c 001310113
+loop10d 002101303
+loop10e 002133113
+loop10f 011320331
+loop10g 012012102
+loop10h 012302321
+loop10i 013120131
+loop10j 013120213
+loop12a 00012300032
+loop12b 00101200303
+loop12c 00120031002
+loop12d 00120113302
+loop12e 00120120013
+loop12f 00120120331
+loop12g 00120121112
+loop12h 00123002123
+loop12i 00123202303
+loop12j 00123302101
+loop12k 00130013001
+loop12l 00130323013
+loop12m 00130323331
+loop12n 00130331101
+loop12o 00132023203
+loop12p 00132031021
+loop12q 00132033023
+loop12r 00200200200
+loop12s 00200210203
+loop12t 00201210101
+loop12u 01101201101
+loop12v 01101233013
+loop12w 01101233331
+loop12x 01101303303
+loop12y 01101311031
+loop12z 01101311113
+loop12aa 01123033113
+loop12bb 01123203101
+loop12cc 01123211013
+loop12dd 01123211331
+loop12ee 01131013023
+loop12ff 01131021201
+loop12gg 01132302102
+loop12hh 01132332303
+loop12ii 01133113303
+loop12jj 01133121031
+loop12kk 01133121113
+loop12ll 01201213321
+loop12mm 01210132023
+loop12nn 01210203230
+loop12oo 01213313023
+loop12pp 01230201230
+loop12qq 01233231303
+loop12rr 01233313203
+loop12ss 01233321021
+loop12tt 01303101303
+loop12uu 01303133113
+loop12vv 01311323113
+loop12ww 02123202321
+loop12xx 11213311331
+loop12yy 11331133113
+loopfa 131012
+loopfb 132032
+loopfc 10120031
+loopfd 10120113
+loopfe 10123332
+loopff 10131102
+loopfg 10213002
+loopfh 12012002
+loopfi 12300131
+loopfj 12300213
+loopfk 12303312
+loopfl 12320231
+loopfm 12320313
+loopfn 12321132
+loopfo 13032302
+loopfp 13312102`);
+autoResizeCode();
+loadFigure('Ball', '13113311313313113311313');
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
