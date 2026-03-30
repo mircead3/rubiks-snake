@@ -1914,7 +1914,9 @@ function applyCode() {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
   while (raw.length < expected) raw += '0';
+  var cursor = codeInput.selectionStart;
   codeInput.value = raw;
+  codeInput.selectionStart = codeInput.selectionEnd = Math.min(cursor, raw.length);
   autoResizeCode();
   var r = parseCode(raw);
   if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
