@@ -1737,7 +1737,14 @@ function updateNumberSprites() {
 var snakeGroup = null;
 var LOCAL_CORNERS_ARR = [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,0,1],[0,1,1]];
 
-function buildSnake(digits) {
+function buildSnake(digits, fitCam) {
+  // Preserve exact world transform so unchanged segments stay in place
+  var savedQ = null, savedP = null;
+  if (!fitCam && snakeGroup) {
+    savedQ = snakeGroup.quaternion.clone();
+    savedP = snakeGroup.position.clone();
+  }
+
   // Remove old snake
   if (snakeGroup) {
     snakeGroup.traverse(function(o) {
@@ -1828,17 +1835,22 @@ function buildSnake(digits) {
   // End markers on open figures
   if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
 
-  snakeGroup.position.set(-center.x, -center.y, -center.z);
+  if (savedQ && savedP) {
+    snakeGroup.position.copy(savedP);
+    snakeGroup.quaternion.copy(savedQ);
+  } else {
+    snakeGroup.position.set(-center.x, -center.y, -center.z);
+  }
+  if (fitCam) {
+    var size = new THREE.Vector3();
+    box.getSize(size);
+    var maxDim = Math.max(size.x, size.y, size.z);
+    var dist = (maxDim / 2) / Math.tan(camera.fov * Math.PI / 360) * 1.65;
+    camera.position.set(dist * 0.55, dist * 0.35, dist * 0.85);
+    _cameraTarget.set(0, 0, 0);
+    camera.lookAt(0, 0, 0);
+  }
   scene.add(snakeGroup);
-
-  // Fit camera
-  var size = new THREE.Vector3();
-  box.getSize(size);
-  var maxDim = Math.max(size.x, size.y, size.z);
-  var dist = (maxDim / 2) / Math.tan(camera.fov * Math.PI / 360) * 1.65;
-  camera.position.set(dist * 0.55, dist * 0.35, dist * 0.85);
-  _cameraTarget.set(0, 0, 0);
-  camera.lookAt(0, 0, 0);
 }
 
 // ─── UI HELPERS ────────────────────────────────────────────────────────────────
@@ -1907,12 +1919,12 @@ function applyCode() {
   var r = parseCode(raw);
   if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
   clearError();
-  try { buildSnake(r.digits); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
+  try { buildSnake(r.digits, false); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
 }
 
 
 codeInput.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); applyCode(); return; }
+  if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   var max = getLength() - 1;
   if (codeInput.value.length >= max &&
       codeInput.selectionStart === codeInput.selectionEnd &&
@@ -1923,13 +1935,19 @@ codeInput.addEventListener('keydown', function(e) {
     codeInput.selectionStart = codeInput.selectionEnd = pos + 1;
     autoResizeCode();
     e.preventDefault();
+    applyCode();
   }
 });
 document.getElementById('help-modal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
 codeInput.addEventListener('input', function() {
   var max = getLength() - 1;
-  if (codeInput.value.length > max) codeInput.value = codeInput.value.slice(0, max);
+  if (codeInput.value.length > max) {
+    var pos = codeInput.selectionStart;
+    codeInput.value = codeInput.value.slice(0, max);
+    codeInput.selectionStart = codeInput.selectionEnd = Math.min(pos, max);
+  }
   autoResizeCode();
+  applyCode();
 });
 lengthInput.addEventListener('change', function() {
   var max = getLength() - 1;
@@ -1989,7 +2007,7 @@ function loadFigure(name, code) {
   codeInput.value = code;
   autoResizeCode();
   clearError();
-  buildSnake(code.split('').map(Number));
+  buildSnake(code.split('').map(Number), true);
 }
 
 var hoveredFigureBtn = null;
