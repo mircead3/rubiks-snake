@@ -44,11 +44,10 @@ canvas { display:block; touch-action:none; }
   resize:none; overflow:hidden; word-break:break-all;
   box-sizing:border-box; vertical-align:top;
 }
-#code-input::placeholder { color:rgba(160,160,220,0.4); }
 #code-input:focus { border-color:rgba(160,160,255,0.8); }
 #code-input.invalid { border-color:rgba(255,80,80,0.8); }
 #code-overlay {
-  position:absolute; inset:0; pointer-events:none;
+  position:absolute; inset:0; pointer-events:none; text-align:left;
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
   padding:4px 12px; word-break:break-all; white-space:pre-wrap;
   overflow:hidden; box-sizing:border-box; line-height:inherit;
@@ -139,7 +138,7 @@ canvas { display:block; touch-action:none; }
     <label for="length-input">Seg:</label>
     <input id="length-input" type="number" min="2" max="200" value="24">
     <div id="code-wrapper">
-      <textarea id="code-input" rows="1" placeholder="0=straight 1=90° 2=180° 3=270°" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <button class="btn" onclick="applyCode()">Go</button>
@@ -1419,6 +1418,7 @@ var BASE_GEO = createPrismGeometry();
 
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
+var MAT_HIT = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 120, specular: new THREE.Color(0x888888) });
 
 // ─── CHAIN BUILDING ────────────────────────────────────────────────────────────
 // Notation: 0=straight, 1=90°, 2=180°(fold), 3=270°
@@ -1664,17 +1664,30 @@ var _FACES_LOCAL = [
 var _camLocal  = new THREE.Vector3();
 var _toCamera  = new THREE.Vector3();
 
-function makeNumTexture(n) {
+function makeNumTexture(n, color) {
   var label = String(n);
   var canvas = document.createElement('canvas');
   canvas.width = 64; canvas.height = 64;
   var ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = color || '#000000';
   ctx.font = 'bold ' + (label.length > 2 ? '18px' : '22px') + ' sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, 32, 32);
   var tex = new THREE.CanvasTexture(canvas);
   return tex;
+}
+
+function highlightSprites(hitIndices) {
+  _hitSegments = hitIndices;
+  if (!numberGroup) return;
+  var sprites = numberGroup.children;
+  for (var i = 0; i < sprites.length; i++) {
+    var isHit = hitIndices && hitIndices.indexOf(i) !== -1;
+    var oldTex = sprites[i].material.map;
+    sprites[i].material.map = makeNumTexture(i + 1, '#000000');
+    sprites[i].material.needsUpdate = true;
+    if (oldTex) oldTex.dispose();
+  }
 }
 
 function buildNumberSprites(transforms) {
@@ -1744,14 +1757,22 @@ function buildSnake(digits) {
   else closedEl.classList.remove('visible');
 
   // Self-intersection check
+  var _intersectionResult = null;
   try {
-    var result = checkIntersection(transforms);
-    if (result.hit) {
-      setError('Self-intersection: pieces ' + result.a + ' and ' + result.b + ' overlap.');
+    _intersectionResult = checkIntersection(transforms);
+    if (_intersectionResult.hit) {
+      setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
+      var hp = [];
+      if (_intersectionResult.a > 0) hp.push(_intersectionResult.a - 1);
+      if (_intersectionResult.b > 0) hp.push(_intersectionResult.b - 1);
+      _hitPositions = hp;
+      updateCodeDisplay();
+    } else {
+      _hitPositions = null;
     }
   } catch(e) {
-    // Intersection check failed; skip it and render anyway
+    _hitPositions = null;
     console.warn('Intersection check error:', e);
   }
 
@@ -1770,7 +1791,8 @@ function buildSnake(digits) {
 
   snakeGroup = new THREE.Group();
   for (var i = 0; i < transforms.length; i++) {
-    var mesh = new THREE.Mesh(BASE_GEO.clone(), i % 2 === 0 ? MAT_A : MAT_B);
+    var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
+    var mesh = new THREE.Mesh(BASE_GEO.clone(), isHitSeg ? MAT_HIT : (i % 2 === 0 ? MAT_A : MAT_B));
     mesh.matrixAutoUpdate = false;
     mesh.matrix.copy(transforms[i]);
     mesh.matrixWorldNeedsUpdate = true;
@@ -1779,6 +1801,13 @@ function buildSnake(digits) {
   // Segment number sprites
   numberGroup = buildNumberSprites(transforms);
   snakeGroup.add(numberGroup);
+  if (_intersectionResult && _intersectionResult.hit) {
+    highlightSprites([_intersectionResult.a, _intersectionResult.b]);
+    if (!showNumbers) document.getElementById('toggle-numbers').click();
+  } else {
+    highlightSprites(null);
+    if (showNumbers) document.getElementById('toggle-numbers').click();
+  }
 
   // Cube-crack lines
   var crackPos = buildCubeCracks(transforms);
@@ -1802,7 +1831,7 @@ function buildSnake(digits) {
   snakeGroup.position.set(-center.x, -center.y, -center.z);
   scene.add(snakeGroup);
 
-  // Fit camera distance to bounding box
+  // Fit camera
   var size = new THREE.Vector3();
   box.getSize(size);
   var maxDim = Math.max(size.x, size.y, size.z);
@@ -1823,6 +1852,8 @@ function setError(msg) {
 function clearError() {
   errorDiv.textContent = '';
   codeInput.classList.remove('invalid');
+  _hitPositions = null;
+  updateCodeDisplay();
 }
 
 function getLength() {
@@ -1831,12 +1862,16 @@ function getLength() {
 }
 
 var _CODE_COLORS = ['#7ec8ff', '#ffc87e'];
+var _hitPositions = null;
+var _hitSegments = null;
 function updateCodeDisplay() {
   var code = codeInput.value;
   var html = '', gi = 0;
   for (var i = 0; i < code.length; i++) {
     if (code[i] === '\n') { html += '\n'; continue; }
-    var col = _CODE_COLORS[Math.floor(gi / 3) % 2];
+    var col = (_hitPositions && _hitPositions.indexOf(gi) !== -1)
+      ? '#ff6060'
+      : _CODE_COLORS[Math.floor(gi / 3) % 2];
     html += '<span style="color:' + col + '">' + code[i] + '</span>';
     gi++;
   }
@@ -1852,11 +1887,6 @@ function autoResizeCode() {
 }
 
 function parseCode(str) {
-  var n = getLength();
-  var expected = n - 1;
-  if (str.length !== expected) {
-    return { err: 'Need exactly ' + expected + ' digit' + (expected !== 1 ? 's' : '') + ' for ' + n + ' segments (got ' + str.length + ').' };
-  }
   var digits = [];
   for (var i = 0; i < str.length; i++) {
     var d = parseInt(str[i], 10);
@@ -1869,8 +1899,11 @@ function parseCode(str) {
 }
 
 function applyCode() {
+  var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
-  if (raw.length === 0) { setError('Enter a code.'); codeInput.classList.add('invalid'); return; }
+  while (raw.length < expected) raw += '0';
+  codeInput.value = raw;
+  autoResizeCode();
   var r = parseCode(raw);
   if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
   clearError();
@@ -1878,12 +1911,30 @@ function applyCode() {
 }
 
 
-codeInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyCode(); } });
+codeInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); applyCode(); return; }
+  var max = getLength() - 1;
+  if (codeInput.value.length >= max &&
+      codeInput.selectionStart === codeInput.selectionEnd &&
+      codeInput.selectionStart < codeInput.value.length &&
+      /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    var pos = codeInput.selectionStart;
+    codeInput.value = codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos + 1);
+    codeInput.selectionStart = codeInput.selectionEnd = pos + 1;
+    autoResizeCode();
+    e.preventDefault();
+  }
+});
 document.getElementById('help-modal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
-codeInput.addEventListener('input', autoResizeCode);
-lengthInput.addEventListener('change', function() {
+codeInput.addEventListener('input', function() {
+  var max = getLength() - 1;
+  if (codeInput.value.length > max) codeInput.value = codeInput.value.slice(0, max);
   autoResizeCode();
-  codeInput.value = '';
+});
+lengthInput.addEventListener('change', function() {
+  var max = getLength() - 1;
+  if (codeInput.value.length > max) codeInput.value = '';
+  autoResizeCode();
   clearError();
 });
 
