@@ -142,6 +142,7 @@ canvas { display:block; touch-action:none; }
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <button class="btn" onclick="applyCode()">Go</button>
+    <button class="btn" id="toggle-fold" title="Fold mode: show snake up to cursor position">Fold</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
@@ -177,9 +178,17 @@ canvas { display:block; touch-action:none; }
       <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
       <tr><td>Go</td><td>Render the code</td></tr>
+      <tr><td>Fold</td><td>Toggle fold mode: snake is shown only up to the cursor position in the code; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>closed</td><td>Lights up when the figure forms a closed loop</td></tr>
+    </table>
+
+    <h3>Fold mode shortcuts</h3>
+    <table>
+      <tr><td>^→</td><td>Automatically fold the snake (advance cursor right) at a steady pace</td></tr>
+      <tr><td>^←</td><td>Automatically unfold the snake (advance cursor left) at a steady pace</td></tr>
+      <tr><td>Any key</td><td>Stop the automatic folding/unfolding</td></tr>
     </table>
 
     <h3>Figure list (left panel)</h3>
@@ -1810,7 +1819,7 @@ function buildSnake(digits, fitCam) {
   snakeGroup.add(numberGroup);
   if (_intersectionResult && _intersectionResult.hit) {
     highlightSprites([_intersectionResult.a, _intersectionResult.b]);
-    if (!showNumbers) document.getElementById('toggle-numbers').click();
+    if (!showNumbers && _foldTimer === null) document.getElementById('toggle-numbers').click();
   } else {
     highlightSprites(null);
     if (showNumbers) document.getElementById('toggle-numbers').click();
@@ -1910,6 +1919,20 @@ function parseCode(str) {
   return { digits: digits };
 }
 
+var rollMode = false;
+
+function applyDisplay() {
+  var expected = getLength() - 1;
+  var raw = codeInput.value.replace(/\s+/g, '');
+  while (raw.length < expected) raw += '0';
+  var cursor = codeInput.selectionStart;
+  var displayRaw = raw.slice(0, cursor) + '0'.repeat(raw.length - cursor);
+  var r = parseCode(displayRaw);
+  if (r.err) return;
+  clearError();
+  try { buildSnake(r.digits, false); } catch(e) {}
+}
+
 function applyCode() {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
@@ -1921,11 +1944,16 @@ function applyCode() {
   var r = parseCode(raw);
   if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
   clearError();
+  if (rollMode) { applyDisplay(); return; }
   try { buildSnake(r.digits, false); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
 }
 
 
 codeInput.addEventListener('keydown', function(e) {
+  if (_foldTimer !== null) {
+    var isCtrlArrow = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
+    if (!isCtrlArrow) { _stopFoldAnim(); e.preventDefault(); return; }
+  }
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   var max = getLength() - 1;
   if (codeInput.value.length >= max &&
@@ -2010,6 +2038,7 @@ function loadFigure(name, code) {
   autoResizeCode();
   clearError();
   buildSnake(code.split('').map(Number), true);
+  if (rollMode) applyDisplay();
 }
 
 var hoveredFigureBtn = null;
@@ -2018,6 +2047,12 @@ function _setHoveredFigureBtn(btn) {
   hoveredFigureBtn = btn;
 }
 document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    e.preventDefault();
+    _startFoldAnim(e.key === 'ArrowRight' ? 1 : -1);
+    return;
+  }
+  if (_foldTimer !== null && !(e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft'))) { _stopFoldAnim(); }
   if (e.key === 'Enter' && hoveredFigureBtn) { hoveredFigureBtn.click(); e.preventDefault(); return; }
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && hoveredFigureBtn) {
     var af = document.getElementById('active-figures');
@@ -2045,6 +2080,49 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
   if (numberGroup) numberGroup.visible = showNumbers;
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
+
+document.getElementById('toggle-fold').addEventListener('click', function() {
+  rollMode = !rollMode;
+  this.style.opacity = rollMode ? '1' : '0.5';
+  if (rollMode) {
+    applyDisplay();
+  } else {
+    applyCode();
+  }
+});
+document.getElementById('toggle-fold').style.opacity = '0.5';
+
+document.addEventListener('selectionchange', function() {
+  if (rollMode && document.activeElement === codeInput) {
+    applyDisplay();
+  }
+});
+
+var _foldTimer = null;
+function _stopFoldAnim() {
+  if (_foldTimer !== null) { clearInterval(_foldTimer); _foldTimer = null; }
+}
+function _startFoldAnim(dir) {
+  if (!rollMode) {
+    rollMode = true;
+    document.getElementById('toggle-fold').style.opacity = '1';
+  }
+  // Ensure textarea value is padded so cursor can reach the end
+  var expected = getLength() - 1;
+  var raw = codeInput.value.replace(/\s+/g, '');
+  while (raw.length < expected) raw += '0';
+  if (codeInput.value !== raw) { var c = codeInput.selectionStart; codeInput.value = raw; codeInput.selectionStart = codeInput.selectionEnd = Math.min(c, raw.length); }
+  codeInput.focus();
+  _stopFoldAnim();
+  _foldTimer = setInterval(function() {
+    var cur = codeInput.selectionStart;
+    var maxPos = codeInput.value.length;
+    var next = dir > 0 ? Math.min(cur + 1, maxPos) : Math.max(cur - 1, 0);
+    if (next === cur) { _stopFoldAnim(); return; }
+    codeInput.selectionStart = codeInput.selectionEnd = next;
+    applyDisplay();
+  }, 400);
+}
 
 var _loadedFileNames = [];
 var _activeFigureName = null;
