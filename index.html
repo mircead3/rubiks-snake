@@ -24,6 +24,12 @@ canvas { display:block; touch-action:none; }
   pointer-events:all; margin-bottom:8px;
 }
 #controls-row label { color:#8899cc; font-size:12px; }
+#name-input {
+  width:100px; padding:7px 8px; background:rgba(20,20,40,0.9);
+  border:1px solid rgba(140,140,255,0.4); border-radius:6px;
+  color:#ddf; font-size:13px; outline:none;
+}
+#name-input:focus { border-color:rgba(160,160,255,0.8); }
 #length-input {
   width:48px; padding:7px 8px; background:rgba(20,20,40,0.9);
   border:1px solid rgba(140,140,255,0.4); border-radius:6px;
@@ -93,6 +99,7 @@ canvas { display:block; touch-action:none; }
 }
 .file-tab:hover { background:rgba(40,60,100,0.8); color:#aac; }
 .file-tab.active { background:rgba(20,35,60,0.9); color:#88bbff; border-color:rgba(80,140,220,0.55); }
+.file-tab.save-target::before { content:'▸ '; color:rgba(140,200,255,0.7); }
 .builtin-tab {
   padding:5px 10px; border:1px solid rgba(200,160,60,0.35);
   background:rgba(35,28,10,0.8); color:#aa8844; border-radius:8px;
@@ -155,6 +162,7 @@ canvas { display:block; touch-action:none; }
     <h1>Rubik's Snake</h1>
   </div>
   <div id="controls-row">
+    <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
     <label for="length-input">Seg:</label>
     <input id="length-input" type="number" min="2" max="200" value="24">
     <div id="code-wrapper">
@@ -163,6 +171,7 @@ canvas { display:block; touch-action:none; }
     </div>
     <button class="btn" onclick="applyCode()">Go</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
+    <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   </div>
   <div id="view-row">
     <button class="btn" id="toggle-fold" title="Fold mode: show snake up to cursor position">Fold</button>
@@ -186,6 +195,7 @@ canvas { display:block; touch-action:none; }
     <div id="user-tabs"></div>
   </div>
   <div id="active-figures"></div>
+  <button class="btn" id="btn-download" title="Download current list as text file" onclick="downloadActiveList()" disabled style="width:100%;margin-top:4px;">↓ Download list</button>
 </div>
 
 <div id="hint">Drag to rotate &nbsp;&middot;&nbsp; Scroll to zoom</div>
@@ -203,12 +213,18 @@ canvas { display:block; touch-action:none; }
       <tr><td>Two-finger swipe</td><td>Pan (touch)</td></tr>
     </table>
 
-    <h3>Buttons</h3>
+    <h3>Editing</h3>
     <table>
+      <tr><td>Name</td><td>Figure name — populated when a figure is loaded; edit before saving</td></tr>
       <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
       <tr><td>Go</td><td>Render the code</td></tr>
       <tr><td>↩</td><td>Undo the last digit edit; press repeatedly to undo all changes back to the loaded figure. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
+      <tr><td>Save</td><td>Save the current name and code to the active user file (marked ▸). If no user file is loaded, a new <code>my_figures.txt</code> tab is created automatically. Switches the displayed list to that file.</td></tr>
+    </table>
+
+    <h3>View</h3>
+    <table>
       <tr><td>Fold</td><td>Toggle fold mode: snake is shown only up to the cursor position in the code; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
@@ -222,10 +238,13 @@ canvas { display:block; touch-action:none; }
       <tr><td>Any key</td><td>Stop the automatic folding/unfolding</td></tr>
     </table>
 
-    <h3>Figure list (left panel)</h3>
+    <h3>Left panel</h3>
     <table>
-      <tr><td>Load file</td><td>Load one or more <code>.txt</code> figure files; each gets a tab</td></tr>
-      <tr><td>Click tab</td><td>Show / hide the figures in that file</td></tr>
+      <tr><td>Collections</td><td>Built-in figure sets (amber tabs) — always available</td></tr>
+      <tr><td>Load file</td><td>Load one or more <code>.txt</code> figure files; each gets a blue tab</td></tr>
+      <tr><td>▸ tab</td><td>The marked user tab is where Save sends figures</td></tr>
+      <tr><td>Click tab</td><td>Show / hide the figures in that file; clicking a user tab also makes it the save destination</td></tr>
+      <tr><td>↓ Download list</td><td>Download the currently visible figure list as a <code>.txt</code> file</td></tr>
       <tr><td>Click figure</td><td>Load and render it</td></tr>
       <tr><td>↑ ↓ arrows</td><td>Navigate the figure list</td></tr>
       <tr><td>Enter</td><td>Load the highlighted figure</td></tr>
@@ -1903,6 +1922,7 @@ function buildSnake(digits, fitCam) {
 
 // ─── UI HELPERS ────────────────────────────────────────────────────────────────
 var codeInput   = document.getElementById('code-input');
+var nameInput   = document.getElementById('name-input');
 var lengthInput = document.getElementById('length-input');
 var errorDiv    = document.getElementById('error-msg');
 
@@ -2085,6 +2105,7 @@ function parseFileLine(line) {
 
 function loadFigure(name, code) {
   _activeFigureName = name;
+  nameInput.value = name;
   document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
     b.classList.toggle('active', b.textContent === name);
   });
@@ -2185,10 +2206,25 @@ function _startFoldAnim(dir) {
 
 var _loadedFileNames = [];
 var _activeFigureName = null;
+var _activeListTab = null;  // currently shown tab (any kind), for Download
+var _saveTarget = null;     // most recently shown user tab, for Save
+
+function _setSaveTarget(tab) {
+  if (_saveTarget) _saveTarget.classList.remove('save-target');
+  _saveTarget = tab;
+  if (_saveTarget) _saveTarget.classList.add('save-target');
+}
+
+function _updateSaveDownload() {
+  document.getElementById('btn-download').disabled = !_activeListTab;
+}
 
 function _showFileTab(tab, figures) {
   document.querySelectorAll('.file-tab, .builtin-tab').forEach(function(t) { t.classList.remove('active'); });
   tab.classList.add('active');
+  _activeListTab = tab;
+  if (tab.classList.contains('file-tab')) _setSaveTarget(tab);
+  _updateSaveDownload();
   var af = document.getElementById('active-figures');
   af.innerHTML = '';
   _setHoveredFigureBtn(null);
@@ -2208,6 +2244,8 @@ function _showFileTab(tab, figures) {
 function addFileEntry(name, figures, containerId, isBuiltin) {
   var tab = document.createElement('button');
   tab.className = isBuiltin ? 'builtin-tab' : 'file-tab';
+  tab._figures = figures;
+  tab._fileName = name;
   tab.textContent = name.replace(/\.[^.]+$/, '');
   tab.title = name;
   tab.addEventListener('click', function() {
@@ -2215,6 +2253,8 @@ function addFileEntry(name, figures, containerId, isBuiltin) {
       tab.classList.remove('active');
       document.getElementById('active-figures').innerHTML = '';
       _setHoveredFigureBtn(null);
+      _activeListTab = null;
+      _updateSaveDownload();
     } else {
       _showFileTab(tab, figures);
     }
@@ -2246,6 +2286,46 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   }
   e.target.value = '';
 });
+
+// ─── SAVE / DOWNLOAD ───────────────────────────────────────────────────────────
+function saveFigure() {
+  var name = nameInput.value.trim();
+  if (!name) { setError('Enter a figure name to save.'); return; }
+  var code = codeInput.value.trim();
+  if (!code) { setError('No code to save.'); return; }
+  if (!_saveTarget) {
+    // No user tab yet — create one and make it the save target
+    var newFigures = [];
+    var newName = 'my_figures.txt';
+    _loadedFileNames.push(newName);
+    addFileEntry(newName, newFigures, 'user-tabs', false);
+    var tabs = document.querySelectorAll('#user-tabs .file-tab');
+    _setSaveTarget(tabs[tabs.length - 1]);
+  }
+  var figures = _saveTarget._figures;
+  var found = false;
+  for (var i = 0; i < figures.length; i++) {
+    if (figures[i].name === name) { figures[i].code = code; found = true; break; }
+  }
+  if (!found) figures.push({ name: name, code: code });
+  _activeFigureName = name;
+  _showFileTab(_saveTarget, figures);
+}
+
+function downloadActiveList() {
+  if (!_activeListTab) return;
+  var figures = _activeListTab._figures;
+  var text = figures.map(function(f) { return f.name + ' ' + f.code; }).join('\n');
+  var blob = new Blob([text], { type: 'text/plain' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = _activeListTab._fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 loadBuiltinFile('closed_snakes.txt', `Angel 01321113313113332130013
