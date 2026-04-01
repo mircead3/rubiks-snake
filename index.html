@@ -163,13 +163,12 @@ canvas { display:block; touch-action:none; }
   </div>
   <div id="controls-row">
     <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
-    <label for="length-input">Seg:</label>
     <input id="length-input" type="number" min="2" max="200" value="24">
     <div id="code-wrapper">
       <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
-    <button class="btn" onclick="applyCode()">Go</button>
+    <span id="closed-indicator">✓</span>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   </div>
@@ -178,7 +177,6 @@ canvas { display:block; touch-action:none; }
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
-    <span id="closed-indicator">closed</span>
   </div>
   <div id="error-msg"></div>
 </div>
@@ -218,7 +216,6 @@ canvas { display:block; touch-action:none; }
       <tr><td>Name</td><td>Figure name — populated when a figure is loaded; edit before saving</td></tr>
       <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
-      <tr><td>Go</td><td>Render the code</td></tr>
       <tr><td>↩</td><td>Undo the last digit edit; press repeatedly to undo all changes back to the loaded figure. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>Save</td><td>Save the current name and code to the active user file (marked ▸). If no user file is loaded, a new <code>my_figures.txt</code> tab is created automatically. Switches the displayed list to that file.</td></tr>
     </table>
@@ -228,7 +225,7 @@ canvas { display:block; touch-action:none; }
       <tr><td>Fold</td><td>Toggle fold mode: snake is shown only up to the cursor position in the code; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
-      <tr><td>closed</td><td>Lights up when the figure forms a closed loop</td></tr>
+      <tr><td>✓</td><td>Lights up when the figure forms a closed loop</td></tr>
     </table>
 
     <h3>Fold mode shortcuts</h3>
