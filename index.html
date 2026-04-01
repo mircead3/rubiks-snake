@@ -1434,6 +1434,14 @@ function createPrismGeometry() {
 }
 var BASE_GEO = createPrismGeometry();
 
+var SNAKE_COLORS = [0xD42B2B, 0x1A55D4, 0xE07B00, 0x1A9B4E, 0xF0C000, 0x7733CC];
+var _lastSnakeColor = -1;
+function pickSnakeColor() {
+  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
+  var c = choices[Math.floor(Math.random() * choices.length)];
+  _lastSnakeColor = c;
+  MAT_A.color.setHex(c);
+}
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_HIT = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 120, specular: new THREE.Color(0x888888) });
@@ -2060,6 +2068,7 @@ function loadFigure(name, code) {
   });
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
+  pickSnakeColor();
   var n = code.length + 1;
   lengthInput.value = n;
   codeInput.value = code;
