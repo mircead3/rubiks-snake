@@ -64,6 +64,11 @@ canvas { display:block; touch-action:none; }
   cursor:pointer; font-size:12px; transition:all 0.15s; outline:none;
 }
 .btn:hover { background:rgba(50,50,120,0.7); color:#fff; }
+.btn:disabled { opacity:0.3; cursor:default; pointer-events:none; }
+#view-row {
+  display:flex; align-items:center; gap:8px; justify-content:center;
+  pointer-events:all; margin-bottom:8px;
+}
 
 
 #left-panel {
@@ -142,6 +147,9 @@ canvas { display:block; touch-action:none; }
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <button class="btn" onclick="applyCode()">Go</button>
+    <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
+  </div>
+  <div id="view-row">
     <button class="btn" id="toggle-fold" title="Fold mode: show snake up to cursor position">Fold</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
@@ -178,6 +186,7 @@ canvas { display:block; touch-action:none; }
       <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
       <tr><td>Go</td><td>Render the code</td></tr>
+      <tr><td>↩</td><td>Undo the last digit edit; press repeatedly to undo all changes back to the loaded figure. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>Fold</td><td>Toggle fold mode: snake is shown only up to the cursor position in the code; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
@@ -1867,6 +1876,21 @@ var codeInput   = document.getElementById('code-input');
 var lengthInput = document.getElementById('length-input');
 var errorDiv    = document.getElementById('error-msg');
 
+var _undoStack = [];
+function _undoPush() {
+  _undoStack.push({ value: codeInput.value, selStart: codeInput.selectionStart });
+  document.getElementById('btn-undo').disabled = false;
+}
+function undoCode() {
+  if (_undoStack.length === 0) return;
+  var state = _undoStack.pop();
+  document.getElementById('btn-undo').disabled = (_undoStack.length === 0);
+  codeInput.value = state.value;
+  codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
+  applyCode();
+}
+codeInput.addEventListener('beforeinput', function() { _undoPush(); });
+
 function setError(msg) {
   errorDiv.textContent = msg;
 }
@@ -1955,11 +1979,13 @@ codeInput.addEventListener('keydown', function(e) {
     if (!isCtrlArrow) { _stopFoldAnim(); e.preventDefault(); return; }
   }
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
   var max = getLength() - 1;
   if (codeInput.value.length >= max &&
       codeInput.selectionStart === codeInput.selectionEnd &&
       codeInput.selectionStart < codeInput.value.length &&
       /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    _undoPush();
     var pos = codeInput.selectionStart;
     codeInput.value = codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos + 1);
     codeInput.selectionStart = codeInput.selectionEnd = pos + 1;
@@ -2032,6 +2058,8 @@ function loadFigure(name, code) {
   document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
     b.classList.toggle('active', b.textContent === name);
   });
+  _undoStack = [];
+  document.getElementById('btn-undo').disabled = true;
   var n = code.length + 1;
   lengthInput.value = n;
   codeInput.value = code;
