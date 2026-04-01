@@ -77,7 +77,14 @@ canvas { display:block; touch-action:none; }
   pointer-events:none; user-select:none; width:160px;
 }
 #left-panel > * { pointer-events:all; }
-#file-tabs { display:flex; flex-direction:column; gap:4px; width:160px; }
+#builtin-tabs, #user-tabs { display:flex; flex-direction:column; gap:4px; width:160px; }
+.panel-label {
+  color:rgba(140,140,180,0.45); font-size:9px; letter-spacing:1.5px;
+  text-transform:uppercase; margin-bottom:2px; padding-left:2px;
+}
+.panel-divider {
+  height:1px; background:rgba(140,140,200,0.15); margin:6px 0;
+}
 .file-tab {
   padding:5px 10px; border:1px solid rgba(100,160,220,0.35);
   background:rgba(20,30,50,0.8); color:#7799bb; border-radius:8px;
@@ -86,6 +93,14 @@ canvas { display:block; touch-action:none; }
 }
 .file-tab:hover { background:rgba(40,60,100,0.8); color:#aac; }
 .file-tab.active { background:rgba(20,35,60,0.9); color:#88bbff; border-color:rgba(80,140,220,0.55); }
+.builtin-tab {
+  padding:5px 10px; border:1px solid rgba(200,160,60,0.35);
+  background:rgba(35,28,10,0.8); color:#aa8844; border-radius:8px;
+  cursor:pointer; font-size:11px; text-align:left; outline:none; width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:all 0.15s;
+}
+.builtin-tab:hover { background:rgba(70,55,15,0.8); color:#ccaa66; }
+.builtin-tab.active { background:rgba(45,35,10,0.9); color:#ddbb77; border-color:rgba(200,160,60,0.6); }
 #active-figures {
   display:flex; flex-direction:column; gap:5px;
   max-height:55vh; overflow-y:auto; width:110px;
@@ -161,8 +176,15 @@ canvas { display:block; touch-action:none; }
 
 
 <div id="left-panel">
-  <label class="btn" style="cursor:pointer;display:inline-block;">Load file<input type="file" id="file-input" style="display:none" multiple></label>
-  <div id="file-tabs"></div>
+  <div id="library-section">
+    <div class="panel-label">Collections</div>
+    <div id="builtin-tabs"></div>
+  </div>
+  <div class="panel-divider"></div>
+  <div id="user-section">
+    <label class="btn" style="cursor:pointer;display:inline-block;">Load file<input type="file" id="file-input" style="display:none" multiple></label>
+    <div id="user-tabs"></div>
+  </div>
   <div id="active-figures"></div>
 </div>
 
@@ -2050,7 +2072,7 @@ function loadBuiltinFile(name, text) {
   var lines = text.split(/\r?\n/);
   var figures = [];
   for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
-  if (figures.length > 0) { _loadedFileNames.push(name); addFileEntry(name, figures); }
+  if (figures.length > 0) { addFileEntry(name, figures, 'builtin-tabs', true); }
 }
 
 function parseFileLine(line) {
@@ -2165,7 +2187,7 @@ var _loadedFileNames = [];
 var _activeFigureName = null;
 
 function _showFileTab(tab, figures) {
-  document.querySelectorAll('.file-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.file-tab, .builtin-tab').forEach(function(t) { t.classList.remove('active'); });
   tab.classList.add('active');
   var af = document.getElementById('active-figures');
   af.innerHTML = '';
@@ -2183,9 +2205,9 @@ function _showFileTab(tab, figures) {
   }
 }
 
-function addFileEntry(name, figures) {
+function addFileEntry(name, figures, containerId, isBuiltin) {
   var tab = document.createElement('button');
-  tab.className = 'file-tab';
+  tab.className = isBuiltin ? 'builtin-tab' : 'file-tab';
   tab.textContent = name.replace(/\.[^.]+$/, '');
   tab.title = name;
   tab.addEventListener('click', function() {
@@ -2197,7 +2219,7 @@ function addFileEntry(name, figures) {
       _showFileTab(tab, figures);
     }
   });
-  document.getElementById('file-tabs').appendChild(tab);
+  document.getElementById(containerId || 'user-tabs').appendChild(tab);
   // no auto-show — user clicks the tab to reveal figures
 }
 
