@@ -130,9 +130,27 @@ span.cursor-mark {
   text-align:left; width:100%; word-break:break-all;
 }
 .file-btn:hover, .file-btn.kb-focus { background:rgba(30,80,45,0.7); color:#cceecc; }
+.fig-del {
+  float:right; margin-left:4px; opacity:0; color:#ff8888;
+  font-size:15px; line-height:1.1; transition:opacity 0.15s;
+}
+.file-btn:hover .fig-del, .file-btn.kb-focus .fig-del { opacity:0.5; }
+.fig-del:hover { opacity:1 !important; }
 
 #error-msg {
   color:#ff8080; font-size:11px; min-height:16px; pointer-events:none;
+}
+#delete-toast {
+  position:fixed; bottom:20px; left:16px; z-index:100;
+  background:rgba(25,25,45,0.96); border:1px solid rgba(140,140,255,0.25);
+  border-radius:8px; padding:7px 12px; font-size:11px; color:#aab;
+  display:flex; align-items:center; gap:10px;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+#delete-toast.visible { opacity:1; pointer-events:all; }
+#delete-toast button {
+  background:none; border:none; color:#88aaff; cursor:pointer;
+  font-size:11px; padding:0; text-decoration:underline;
 }
 #hint {
   position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
@@ -262,6 +280,11 @@ span.cursor-mark {
     <code>Ball 11331311313311331311313</code><br>
     <code>Straight 00000000000000000000000</code>
   </div>
+</div>
+
+<div id="delete-toast">
+  <span id="delete-toast-msg"></span>
+  <button onclick="undoDelete()">Undo</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2131,7 +2154,7 @@ function loadFigure(name, code) {
   _activeFigureName = name;
   nameInput.value = name;
   document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
-    b.classList.toggle('active', b.textContent === name);
+    b.classList.toggle('active', b.dataset.name === name);
   });
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
@@ -2270,8 +2293,21 @@ function _showFileTab(tab, figures) {
     (function(fig) {
       var btn = document.createElement('button');
       btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
-      btn.textContent = fig.name;
-      btn.onclick = function() { loadFigure(fig.name, fig.code); };
+      btn.dataset.name = fig.name;
+      btn.innerHTML = fig.name + '<span class="fig-del" title="Remove from list">\xd7</span>';
+      btn.onclick = function(e) {
+        if (e.target.classList.contains('fig-del')) {
+          var idx = tab._figures.indexOf(fig);
+          if (idx !== -1) {
+            _deletedFigure = { fig: fig, index: idx, tab: tab };
+            tab._figures.splice(idx, 1);
+            _showFileTab(tab, tab._figures);
+            _showDeleteToast(fig.name);
+          }
+          return;
+        }
+        loadFigure(fig.name, fig.code);
+      };
       btn.addEventListener('mouseenter', function() { _setHoveredFigureBtn(btn); });
       btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
       af.appendChild(btn);
@@ -2324,6 +2360,31 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   }
   e.target.value = '';
 });
+
+// ─── DELETE UNDO ───────────────────────────────────────────────────────────────
+var _deletedFigure = null;
+var _deleteToastTimer = null;
+
+function _showDeleteToast(name) {
+  clearTimeout(_deleteToastTimer);
+  document.getElementById('delete-toast-msg').textContent = '\u201c' + name + '\u201d deleted';
+  var toast = document.getElementById('delete-toast');
+  toast.classList.add('visible');
+  _deleteToastTimer = setTimeout(function() {
+    toast.classList.remove('visible');
+    _deletedFigure = null;
+  }, 5000);
+}
+
+function undoDelete() {
+  if (!_deletedFigure) return;
+  clearTimeout(_deleteToastTimer);
+  var d = _deletedFigure;
+  _deletedFigure = null;
+  d.tab._figures.splice(d.index, 0, d.fig);
+  if (_activeListTab === d.tab) _showFileTab(d.tab, d.tab._figures);
+  document.getElementById('delete-toast').classList.remove('visible');
+}
 
 // ─── SAVE / DOWNLOAD ───────────────────────────────────────────────────────────
 function saveFigure() {
