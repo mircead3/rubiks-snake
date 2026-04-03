@@ -51,6 +51,12 @@ canvas { display:block; touch-action:none; }
   box-sizing:border-box; vertical-align:top;
 }
 #code-input:focus { border-color:rgba(160,160,255,0.8); }
+span.cursor-mark {
+  display:inline-block; width:2px; height:1.1em;
+  background:rgba(255,220,60,0.85); border-radius:1px;
+  vertical-align:text-bottom; margin:0 -1px;
+  pointer-events:none;
+}
 #code-input.invalid { border-color:rgba(255,80,80,0.8); }
 #code-overlay {
   position:absolute; inset:0; pointer-events:none; text-align:left;
@@ -1937,6 +1943,23 @@ function undoCode() {
   applyCode();
 }
 codeInput.addEventListener('beforeinput', function() { _undoPush(); });
+codeInput.addEventListener('blur', function() {
+  _savedCursorPos = codeInput.selectionStart;
+  updateCodeDisplay();
+});
+codeInput.addEventListener('focus', function() {
+  updateCodeDisplay(); // hides the mark
+});
+codeInput.addEventListener('mousedown', function(e) {
+  if (_savedCursorPos !== null && document.activeElement !== codeInput) {
+    e.preventDefault();
+    var pos = _savedCursorPos;
+    _savedCursorPos = null;
+    codeInput.focus();
+    codeInput.selectionStart = codeInput.selectionEnd = pos;
+    updateCodeDisplay();
+  }
+});
 
 function setError(msg) {
   errorDiv.textContent = msg;
@@ -1956,17 +1979,21 @@ function getLength() {
 var _CODE_COLORS = ['#7ec8ff', '#ffc87e'];
 var _hitPositions = null;
 var _hitSegments = null;
+var _savedCursorPos = null;
 function updateCodeDisplay() {
   var code = codeInput.value;
   var html = '', gi = 0;
+  var showMark = _savedCursorPos !== null && document.activeElement !== codeInput;
   for (var i = 0; i < code.length; i++) {
     if (code[i] === '\n') { html += '\n'; continue; }
+    if (showMark && gi === _savedCursorPos) html += '<span class="cursor-mark"></span>';
     var col = (_hitPositions && _hitPositions.indexOf(gi) !== -1)
       ? '#ff6060'
       : _CODE_COLORS[Math.floor(gi / 3) % 2];
     html += '<span style="color:' + col + '">' + code[i] + '</span>';
     gi++;
   }
+  if (showMark && _savedCursorPos >= gi) html += '<span class="cursor-mark"></span>';
   document.getElementById('code-overlay').innerHTML = html;
 }
 
@@ -2108,6 +2135,11 @@ function loadFigure(name, code) {
   });
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
+  _savedCursorPos = null;
+  if (rollMode) {
+    rollMode = false;
+    document.getElementById('toggle-fold').style.opacity = '0.5';
+  }
   pickSnakeColor();
   var n = code.length + 1;
   lengthInput.value = n;
@@ -2162,6 +2194,10 @@ document.getElementById('toggle-fold').addEventListener('click', function() {
   rollMode = !rollMode;
   this.style.opacity = rollMode ? '1' : '0.5';
   if (rollMode) {
+    var endPos = codeInput.value.length;
+    codeInput.focus();
+    codeInput.selectionStart = codeInput.selectionEnd = endPos;
+    _savedCursorPos = endPos;
     applyDisplay();
   } else {
     applyCode();
@@ -2192,11 +2228,16 @@ function _startFoldAnim(dir) {
   codeInput.focus();
   _stopFoldAnim();
   _foldTimer = setInterval(function() {
-    var cur = codeInput.selectionStart;
-    var maxPos = codeInput.value.length;
-    var next = dir > 0 ? Math.min(cur + 1, maxPos) : Math.max(cur - 1, 0);
-    if (next === cur) { _stopFoldAnim(); return; }
-    codeInput.selectionStart = codeInput.selectionEnd = next;
+    var code = codeInput.value;
+    var maxPos = code.length;
+    var pos = codeInput.selectionStart;
+    do {
+      var next = dir > 0 ? Math.min(pos + 1, maxPos) : Math.max(pos - 1, 0);
+      if (next === pos) { _stopFoldAnim(); return; }
+      var skipDigit = dir > 0 ? code[pos] : code[next];
+      pos = next;
+    } while (skipDigit === '0');
+    codeInput.selectionStart = codeInput.selectionEnd = pos;
     applyDisplay();
   }, 400);
 }
