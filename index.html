@@ -2189,6 +2189,8 @@ function loadFigure(name, code) {
 }
 
 var hoveredFigureBtn = null;
+var _keyboardNavActive = false;
+document.addEventListener('mousemove', function() { _keyboardNavActive = false; });
 function _setHoveredFigureBtn(btn) {
   if (hoveredFigureBtn && hoveredFigureBtn !== btn) hoveredFigureBtn.classList.remove('kb-focus');
   hoveredFigureBtn = btn;
@@ -2207,6 +2209,7 @@ document.addEventListener('keydown', function(e) {
     var idx = btns.indexOf(hoveredFigureBtn);
     var next = e.key === 'ArrowDown' ? btns[idx + 1] : btns[idx - 1];
     if (next) {
+      _keyboardNavActive = true;
       _setHoveredFigureBtn(next);
       next.classList.add('kb-focus');
       next.scrollIntoView({ block: 'nearest' });
@@ -2323,7 +2326,7 @@ function _showFileTab(tab, figures) {
         }
         loadFigure(fig.name, fig.code);
       };
-      btn.addEventListener('mouseenter', function() { _setHoveredFigureBtn(btn); });
+      btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
       btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
       af.appendChild(btn);
     })(figures[i]);
