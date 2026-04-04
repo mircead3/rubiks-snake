@@ -105,7 +105,6 @@ span.cursor-mark {
 }
 .file-tab:hover { background:rgba(40,60,100,0.8); color:#aac; }
 .file-tab.active { background:rgba(20,35,60,0.9); color:#88bbff; border-color:rgba(80,140,220,0.55); }
-.file-tab.save-target::before { content:'▸ '; color:rgba(140,200,255,0.7); }
 .builtin-tab {
   padding:5px 10px; border:1px solid rgba(200,160,60,0.35);
   background:rgba(35,28,10,0.8); color:#aa8844; border-radius:8px;
@@ -116,12 +115,31 @@ span.cursor-mark {
 .builtin-tab.active { background:rgba(45,35,10,0.9); color:#ddbb77; border-color:rgba(200,160,60,0.6); }
 #active-figures {
   display:flex; flex-direction:column; gap:5px;
-  max-height:55vh; overflow-y:auto; width:180px;
+  max-height:30vh; overflow-y:auto; width:180px;
 }
 #active-figures:empty { display:none; }
 #active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
 #active-figures::-webkit-scrollbar { width:4px; }
 #active-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
+#my-list-section { width:100%; margin-top:4px; }
+#my-list-header {
+  display:flex; align-items:center; gap:5px; margin-bottom:4px;
+  border-top:1px solid rgba(140,140,200,0.2); padding-top:8px;
+}
+#my-list-name {
+  flex:1; padding:3px 6px; background:rgba(20,20,40,0.9);
+  border:1px solid rgba(140,140,255,0.3); border-radius:5px;
+  color:#aac; font-size:11px; outline:none; min-width:0;
+}
+#my-list-name:focus { border-color:rgba(160,160,255,0.7); }
+#my-list-figures {
+  display:flex; flex-direction:column; gap:5px;
+  max-height:30vh; overflow-y:auto; width:180px;
+}
+#my-list-figures:empty { display:none; }
+#my-list-figures:not(:empty) { margin-bottom:4px; }
+#my-list-figures::-webkit-scrollbar { width:4px; }
+#my-list-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
 .file-btn.active { background:rgba(20,55,35,0.9); color:#88ffaa; border-color:rgba(80,200,120,0.55); }
 .file-btn {
   padding:4px 6px; border:1px solid rgba(100,180,120,0.35);
@@ -222,7 +240,14 @@ span.cursor-mark {
     <div id="user-tabs"></div>
   </div>
   <div id="active-figures"></div>
-  <button class="btn" id="btn-download" title="Download current list as text file" onclick="downloadActiveList()" disabled style="width:100%;margin-top:4px;">↓ Download list</button>
+  <div id="my-list-section">
+    <div id="my-list-header">
+      <span class="panel-label" style="margin:0;white-space:nowrap">My list:</span>
+      <input id="my-list-name" type="text" value="my_figures" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="my-list-figures"></div>
+    <button class="btn" id="btn-download" title="Download My List as text file" onclick="downloadMyList()" disabled style="width:100%;">↓ Download</button>
+  </div>
 </div>
 
 <div id="hint">Drag to rotate &nbsp;&middot;&nbsp; Scroll to zoom</div>
@@ -246,7 +271,8 @@ span.cursor-mark {
       <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
       <tr><td>↩</td><td>Undo the last digit edit; press repeatedly to undo all changes back to the loaded figure. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
-      <tr><td>Save</td><td>Save the current name and code to the active user file (marked ▸). If no user file is loaded, a new <code>my_figures.txt</code> tab is created automatically. Switches the displayed list to that file.</td></tr>
+      <tr><td>Cursor mark</td><td>When you leave the code box (to rotate the snake), your cursor position is saved and shown as a gold bar. Clicking the code box returns the cursor there.</td></tr>
+      <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
     </table>
 
     <h3>View</h3>
@@ -269,10 +295,11 @@ span.cursor-mark {
     <table>
       <tr><td>Collections</td><td>Built-in figure sets (amber tabs) — always available</td></tr>
       <tr><td>Load file</td><td>Load one or more <code>.txt</code> figure files; each gets a blue tab</td></tr>
-      <tr><td>▸ tab</td><td>The marked user tab is where Save sends figures</td></tr>
-      <tr><td>Click tab</td><td>Show / hide the figures in that file; clicking a user tab also makes it the save destination</td></tr>
-      <tr><td>↓ Download list</td><td>Download the currently visible figure list as a <code>.txt</code> file</td></tr>
+      <tr><td>Click tab</td><td>Show / hide the figures in that collection or file</td></tr>
+      <tr><td>My list</td><td>Your personal working list — figures saved here with the Save button; name the list using the text box</td></tr>
+      <tr><td>↓ Download</td><td>Download My List as a <code>.txt</code> file using the list name</td></tr>
       <tr><td>Click figure</td><td>Load and render it</td></tr>
+      <tr><td>× button</td><td>Remove a figure from the list (undo available for 5 seconds)</td></tr>
       <tr><td>↑ ↓ arrows</td><td>Navigate the figure list</td></tr>
       <tr><td>Enter</td><td>Load the highlighted figure</td></tr>
     </table>
@@ -2039,9 +2066,15 @@ function undoCode() {
   document.getElementById('btn-undo').disabled = (_undoStack.length === 0);
   codeInput.value = state.value;
   codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
+  _savedCursorPos = state.selStart;  // keep golden mark in sync with restored cursor
   applyCode();
+  codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
+  if (rollMode) applyDisplay();
 }
-codeInput.addEventListener('beforeinput', function() { _undoPush(); });
+codeInput.addEventListener('beforeinput', function(e) {
+  if (e.data && /[^0-3]/.test(e.data)) { e.preventDefault(); return; }
+  if (e.inputType !== 'insertText') _undoPush();  // push for delete/paste; digit keys handled in keydown
+});
 codeInput.addEventListener('blur', function() {
   _savedCursorPos = codeInput.selectionStart;
   updateCodeDisplay();
@@ -2168,16 +2201,18 @@ codeInput.addEventListener('keydown', function(e) {
     return;
   }
   var max = getLength() - 1;
+  if (/^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    _undoPush();  // capture state before any digit input (overwrite or insert)
+  }
   if (codeInput.value.length >= max &&
       codeInput.selectionStart === codeInput.selectionEnd &&
       codeInput.selectionStart < codeInput.value.length &&
       /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    _undoPush();
+    e.preventDefault();
     var pos = codeInput.selectionStart;
     codeInput.value = codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos + 1);
     codeInput.selectionStart = codeInput.selectionEnd = pos + 1;
     autoResizeCode();
-    e.preventDefault();
     applyCode();
   }
 });
@@ -2361,25 +2396,61 @@ function _startFoldAnim(dir) {
 
 var _loadedFileNames = [];
 var _activeFigureName = null;
-var _activeListTab = null;  // currently shown tab (any kind), for Download
-var _saveTarget = null;     // most recently shown user tab, for Save
+var _activeListTab = null;
+var _myListFigures = [];
 
-function _setSaveTarget(tab) {
-  if (_saveTarget) _saveTarget.classList.remove('save-target');
-  _saveTarget = tab;
-  if (_saveTarget) _saveTarget.classList.add('save-target');
+function _updateDownload() {
+  document.getElementById('btn-download').disabled = _myListFigures.length === 0;
 }
 
-function _updateSaveDownload() {
-  document.getElementById('btn-download').disabled = !_activeListTab;
+function _renderMyList() {
+  var af = document.getElementById('my-list-figures');
+  af.innerHTML = '';
+  for (var i = 0; i < _myListFigures.length; i++) {
+    (function(fig) {
+      var btn = document.createElement('button');
+      btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
+      btn.dataset.name = fig.name;
+      var img = document.createElement('img');
+      img.className = 'fig-thumb';
+      if (_thumbCache[fig.code]) { img.src = _thumbCache[fig.code]; }
+      else { _thumbQueue.push({ code: fig.code, imgEl: img }); }
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'fig-name';
+      nameSpan.textContent = fig.name;
+      var delSpan = document.createElement('span');
+      delSpan.className = 'fig-del';
+      delSpan.title = 'Remove from list';
+      delSpan.textContent = '\xd7';
+      btn.appendChild(img);
+      btn.appendChild(nameSpan);
+      btn.appendChild(delSpan);
+      btn.onclick = function(e) {
+        if (e.target.classList.contains('fig-del')) {
+          var idx = _myListFigures.indexOf(fig);
+          if (idx !== -1) {
+            _deletedFigure = { fig: fig, index: idx, source: 'my' };
+            _myListFigures.splice(idx, 1);
+            _renderMyList();
+            _updateDownload();
+            _showDeleteToast(fig.name);
+          }
+          return;
+        }
+        loadFigure(fig.name, fig.code);
+      };
+      btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
+      btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
+      af.appendChild(btn);
+    })(_myListFigures[i]);
+  }
+  _updateDownload();
 }
 
 function _showFileTab(tab, figures) {
   document.querySelectorAll('.file-tab, .builtin-tab').forEach(function(t) { t.classList.remove('active'); });
   tab.classList.add('active');
   _activeListTab = tab;
-  if (tab.classList.contains('file-tab')) _setSaveTarget(tab);
-  _updateSaveDownload();
   _thumbQueue = [];
   var af = document.getElementById('active-figures');
   af.innerHTML = '';
@@ -2407,7 +2478,7 @@ function _showFileTab(tab, figures) {
         if (e.target.classList.contains('fig-del')) {
           var idx = tab._figures.indexOf(fig);
           if (idx !== -1) {
-            _deletedFigure = { fig: fig, index: idx, tab: tab };
+            _deletedFigure = { fig: fig, index: idx, source: 'tab', tab: tab };
             tab._figures.splice(idx, 1);
             _showFileTab(tab, tab._figures);
             _showDeleteToast(fig.name);
@@ -2436,7 +2507,6 @@ function addFileEntry(name, figures, containerId, isBuiltin) {
       document.getElementById('active-figures').innerHTML = '';
       _setHoveredFigureBtn(null);
       _activeListTab = null;
-      _updateSaveDownload();
     } else {
       _showFileTab(tab, figures);
     }
@@ -2489,8 +2559,13 @@ function undoDelete() {
   clearTimeout(_deleteToastTimer);
   var d = _deletedFigure;
   _deletedFigure = null;
-  d.tab._figures.splice(d.index, 0, d.fig);
-  if (_activeListTab === d.tab) _showFileTab(d.tab, d.tab._figures);
+  if (d.source === 'my') {
+    _myListFigures.splice(d.index, 0, d.fig);
+    _renderMyList();
+  } else {
+    d.tab._figures.splice(d.index, 0, d.fig);
+    if (_activeListTab === d.tab) _showFileTab(d.tab, d.tab._figures);
+  }
   document.getElementById('delete-toast').classList.remove('visible');
 }
 
@@ -2500,34 +2575,25 @@ function saveFigure() {
   if (!name) { setError('Enter a figure name to save.'); return; }
   var code = codeInput.value.trim();
   if (!code) { setError('No code to save.'); return; }
-  if (!_saveTarget) {
-    // No user tab yet — create one and make it the save target
-    var newFigures = [];
-    var newName = 'my_figures.txt';
-    _loadedFileNames.push(newName);
-    addFileEntry(newName, newFigures, 'user-tabs', false);
-    var tabs = document.querySelectorAll('#user-tabs .file-tab');
-    _setSaveTarget(tabs[tabs.length - 1]);
-  }
-  var figures = _saveTarget._figures;
   var found = false;
-  for (var i = 0; i < figures.length; i++) {
-    if (figures[i].name === name) { figures[i].code = code; found = true; break; }
+  for (var i = 0; i < _myListFigures.length; i++) {
+    if (_myListFigures[i].name === name) { _myListFigures[i].code = code; found = true; break; }
   }
-  if (!found) figures.push({ name: name, code: code });
+  if (!found) _myListFigures.push({ name: name, code: code });
   _activeFigureName = name;
-  _showFileTab(_saveTarget, figures);
+  _renderMyList();
 }
 
-function downloadActiveList() {
-  if (!_activeListTab) return;
-  var figures = _activeListTab._figures;
-  var text = figures.map(function(f) { return f.name + ' ' + f.code; }).join('\n');
+function downloadMyList() {
+  if (_myListFigures.length === 0) return;
+  var listName = (document.getElementById('my-list-name').value.trim() || 'my_figures');
+  var fileName = listName.endsWith('.txt') ? listName : listName + '.txt';
+  var text = _myListFigures.map(function(f) { return f.name + ' ' + f.code; }).join('\n');
   var blob = new Blob([text], { type: 'text/plain' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = _activeListTab._fileName;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
