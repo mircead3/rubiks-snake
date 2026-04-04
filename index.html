@@ -86,10 +86,10 @@ span.cursor-mark {
 #left-panel {
   position:absolute; top:20px; left:16px;
   display:flex; flex-direction:column; align-items:flex-start; gap:6px;
-  pointer-events:none; user-select:none; width:160px;
+  pointer-events:none; user-select:none; width:180px;
 }
 #left-panel > * { pointer-events:all; }
-#builtin-tabs, #user-tabs { display:flex; flex-direction:column; gap:4px; width:160px; }
+#builtin-tabs, #user-tabs { display:flex; flex-direction:column; gap:4px; width:180px; }
 .panel-label {
   color:rgba(140,140,180,0.45); font-size:9px; letter-spacing:1.5px;
   text-transform:uppercase; margin-bottom:2px; padding-left:2px;
@@ -116,7 +116,7 @@ span.cursor-mark {
 .builtin-tab.active { background:rgba(45,35,10,0.9); color:#ddbb77; border-color:rgba(200,160,60,0.6); }
 #active-figures {
   display:flex; flex-direction:column; gap:5px;
-  max-height:55vh; overflow-y:auto; width:110px;
+  max-height:55vh; overflow-y:auto; width:180px;
 }
 #active-figures:empty { display:none; }
 #active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
@@ -124,15 +124,20 @@ span.cursor-mark {
 #active-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
 .file-btn.active { background:rgba(20,55,35,0.9); color:#88ffaa; border-color:rgba(80,200,120,0.55); }
 .file-btn {
-  padding:4px 8px; border:1px solid rgba(100,180,120,0.35);
+  padding:4px 6px; border:1px solid rgba(100,180,120,0.35);
   background:rgba(20,40,25,0.7); color:#88bb99; border-radius:8px;
   cursor:pointer; font-size:11px; line-height:1.4; transition:all 0.15s; outline:none;
-  text-align:left; width:100%; word-break:break-all;
+  text-align:left; width:100%; display:flex; align-items:center; gap:5px;
 }
 .file-btn:hover, .file-btn.kb-focus { background:rgba(30,80,45,0.7); color:#cceecc; }
+.fig-thumb {
+  width:40px; height:40px; border-radius:4px; flex-shrink:0;
+  background:rgba(10,10,20,0.8); display:block;
+}
+.fig-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fig-del {
-  float:right; margin-left:4px; opacity:0; color:#ff8888;
-  font-size:15px; line-height:1.1; transition:opacity 0.15s;
+  flex-shrink:0; opacity:0; color:#ff8888;
+  font-size:15px; line-height:1; transition:opacity 0.15s;
 }
 .file-btn:hover .fig-del, .file-btn.kb-focus .fig-del { opacity:0.5; }
 .fig-del:hover { opacity:1 !important; }
@@ -1502,6 +1507,76 @@ function createPrismGeometry() {
 }
 var BASE_GEO = createPrismGeometry();
 
+// ─── THUMBNAIL RENDERER ────────────────────────────────────────────────────────
+var _thumbRenderer = (function() {
+  try {
+    var r = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+    r.setSize(40, 40);
+    r.setPixelRatio(1);
+    r.domElement.style.display = 'none';
+    document.body.appendChild(r.domElement);
+    return r;
+  } catch(e) { return null; }
+})();
+var _thumbScene = (function() {
+  var s = new THREE.Scene();
+  s.add(new THREE.AmbientLight(0xffffff, 0.5));
+  var dl = new THREE.DirectionalLight(0xffffff, 0.9);
+  dl.position.set(1, 2, 2);
+  s.add(dl);
+  return s;
+})();
+var _thumbCamera = new THREE.PerspectiveCamera(38, 1, 0.01, 1000);
+var _thumbMatA = new THREE.MeshPhongMaterial({ color:0xD42B2B, shininess:40 });
+var _thumbMatB = new THREE.MeshPhongMaterial({ color:0xF0F0F0, shininess:40 });
+var _thumbCache = {};  // code → dataURL
+var _thumbQueue = [];  // [{code, imgEl}]
+
+function _processNextThumbnail() {
+  if (!_thumbRenderer || _thumbQueue.length === 0) return;
+  // Skip disconnected images (list was rebuilt)
+  while (_thumbQueue.length > 0 && !_thumbQueue[0].imgEl.isConnected) _thumbQueue.shift();
+  if (_thumbQueue.length === 0) return;
+  var item = _thumbQueue.shift();
+  var code = item.code;
+  if (_thumbCache[code]) { item.imgEl.src = _thumbCache[code]; return; }
+  // Build mini scene
+  var group = new THREE.Group();
+  var transforms = buildChain(code);
+  for (var i = 0; i < transforms.length; i++) {
+    var mesh = new THREE.Mesh(BASE_GEO, i % 2 === 0 ? _thumbMatA : _thumbMatB);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.copy(transforms[i]);
+    group.add(mesh);
+  }
+  // Fit camera
+  var box = new THREE.Box3();
+  var tmpV = new THREE.Vector3();
+  for (var i = 0; i < transforms.length; i++) {
+    for (var c = 0; c < LOCAL_CORNERS_ARR.length; c++) {
+      tmpV.set(LOCAL_CORNERS_ARR[c][0], LOCAL_CORNERS_ARR[c][1], LOCAL_CORNERS_ARR[c][2]);
+      tmpV.applyMatrix4(transforms[i]);
+      box.expandByPoint(tmpV);
+    }
+  }
+  var center = new THREE.Vector3(); box.getCenter(center);
+  var size = new THREE.Vector3(); box.getSize(size);
+  group.position.set(-center.x, -center.y, -center.z);
+  group.rotation.set(0.4, -0.6, 0);
+  var maxDim = Math.max(size.x, size.y, size.z);
+  var dist = (maxDim / 2) / Math.tan(THREE.MathUtils.degToRad(19)) * 1.2;
+  _thumbCamera.position.set(0, 0, dist);
+  _thumbCamera.lookAt(0, 0, 0);
+  _thumbCamera.updateProjectionMatrix();
+  // Remove previous group (keep 2 lights), add new one
+  while (_thumbScene.children.length > 2) _thumbScene.remove(_thumbScene.children[_thumbScene.children.length - 1]);
+  _thumbScene.add(group);
+  _thumbRenderer.render(_thumbScene, _thumbCamera);
+  var url = _thumbRenderer.domElement.toDataURL();
+  _thumbCache[code] = url;
+  item.imgEl.src = url;
+}
+
 var SNAKE_COLORS = [0xD42B2B, 0x1A55D4, 0xE07B00, 0x1A9B4E, 0x7733CC];
 var _lastSnakeColor = -1;
 function pickSnakeColor() {
@@ -2136,6 +2211,7 @@ function animate(now) {
     }
     updateNumberSprites();
     renderer.render(scene, camera);
+    _processNextThumbnail();
   } catch(e) {
     var em = document.getElementById('error-msg');
     if (em) em.textContent = 'Render error: ' + e.message;
@@ -2304,6 +2380,7 @@ function _showFileTab(tab, figures) {
   _activeListTab = tab;
   if (tab.classList.contains('file-tab')) _setSaveTarget(tab);
   _updateSaveDownload();
+  _thumbQueue = [];
   var af = document.getElementById('active-figures');
   af.innerHTML = '';
   _setHoveredFigureBtn(null);
@@ -2312,7 +2389,20 @@ function _showFileTab(tab, figures) {
       var btn = document.createElement('button');
       btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
       btn.dataset.name = fig.name;
-      btn.innerHTML = fig.name + '<span class="fig-del" title="Remove from list">\xd7</span>';
+      var img = document.createElement('img');
+      img.className = 'fig-thumb';
+      if (_thumbCache[fig.code]) { img.src = _thumbCache[fig.code]; }
+      else { _thumbQueue.push({ code: fig.code, imgEl: img }); }
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'fig-name';
+      nameSpan.textContent = fig.name;
+      var delSpan = document.createElement('span');
+      delSpan.className = 'fig-del';
+      delSpan.title = 'Remove from list';
+      delSpan.textContent = '\xd7';
+      btn.appendChild(img);
+      btn.appendChild(nameSpan);
+      btn.appendChild(delSpan);
       btn.onclick = function(e) {
         if (e.target.classList.contains('fig-del')) {
           var idx = tab._figures.indexOf(fig);
