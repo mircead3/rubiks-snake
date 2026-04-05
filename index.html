@@ -2925,8 +2925,7 @@ loop9n 13312102`);
       tab.title = 'simple_loops_14.txt';
     })
     .catch(function() {
-      tab.title = 'Not available';
-      tab.style.textDecoration = 'line-through';
+      tab.parentNode && tab.parentNode.removeChild(tab);
     });
 })();
 autoResizeCode();
