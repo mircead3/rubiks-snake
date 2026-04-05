@@ -1588,8 +1588,9 @@ function _processNextThumbnail() {
   }
   var center = new THREE.Vector3(); box.getCenter(center);
   var size = new THREE.Vector3(); box.getSize(size);
-  group.position.set(-center.x, -center.y, -center.z);
   group.rotation.set(0.4, -0.6, 0);
+  var rotatedCenter = center.clone().applyEuler(group.rotation);
+  group.position.set(-rotatedCenter.x, -rotatedCenter.y, -rotatedCenter.z);
   var maxDim = Math.max(size.x, size.y, size.z);
   var dist = (maxDim / 2) / Math.tan(THREE.MathUtils.degToRad(19)) * 1.2;
   _thumbCamera.position.set(0, 0, dist);
