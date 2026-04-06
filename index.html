@@ -121,6 +121,7 @@ span.cursor-mark {
 #active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
 #active-figures::-webkit-scrollbar { width:4px; }
 #active-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
+.collection-desc { font-size:10px; color:rgba(180,160,100,0.7); font-style:italic; line-height:1.3; margin-bottom:2px; }
 #my-list-section { width:100%; margin-top:4px; }
 #my-list-header {
   display:flex; align-items:center; gap:5px; margin-bottom:4px;
@@ -2262,11 +2263,11 @@ window.addEventListener('resize', function() {
 });
 
 // ─── FILE LOADER ───────────────────────────────────────────────────────────────
-function loadBuiltinFile(name, text) {
+function loadBuiltinFile(name, text, desc) {
   var lines = text.split(/\r?\n/);
   var figures = [];
   for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
-  if (figures.length > 0) { addFileEntry(name, figures, 'builtin-tabs', true); }
+  if (figures.length > 0) { addFileEntry(name, figures, 'builtin-tabs', true, desc); }
 }
 
 function parseFileLine(line) {
@@ -2456,6 +2457,12 @@ function _showFileTab(tab, figures) {
   var af = document.getElementById('active-figures');
   af.innerHTML = '';
   _setHoveredFigureBtn(null);
+  if (tab._desc) {
+    var descEl = document.createElement('div');
+    descEl.className = 'collection-desc';
+    descEl.textContent = tab._desc;
+    af.appendChild(descEl);
+  }
   for (var i = 0; i < figures.length; i++) {
     (function(fig) {
       var btn = document.createElement('button');
@@ -2495,11 +2502,12 @@ function _showFileTab(tab, figures) {
   }
 }
 
-function addFileEntry(name, figures, containerId, isBuiltin) {
+function addFileEntry(name, figures, containerId, isBuiltin, desc) {
   var tab = document.createElement('button');
   tab.className = isBuiltin ? 'builtin-tab' : 'file-tab';
   tab._figures = figures;
   tab._fileName = name;
+  tab._desc = desc || '';
   tab.textContent = name.replace(/\.[^.]+$/, '');
   tab.title = name;
   tab.addEventListener('click', function() {
@@ -2744,7 +2752,7 @@ Windshield 22012332102032112302202
 Windwheel 12302112302112302112302
 Wings 10203212131133132321020
 Without_Name 21211233202123202112332
-X 30023112310220312331200`);
+X 30023112310220312331200`, 'Most are from the collection of [source TBD]');
 loadBuiltinFile('open_snakes.txt', `Airplane 20001000220002002202100
 Bird 20220001112310132111200
 Bow1 12103313111233313112121
@@ -2804,11 +2812,11 @@ Valley 01232121310203132321230
 Waterfall 10321032103210321032103
 Wingnut 00002111213231211120000
 Wolf 00220200202202000220002
-Zigzag 01010101010101010101010`);
+Zigzag 01010101010101010101010`, 'Most are from the collection of [source TBD]');
 loadBuiltinFile('long_snakes.txt', `car 33330220311032120220301131111010032312132300123212121212320220103331113330312331311313331133031032312113313113202200200310121303101321131331311
 dog 11302200310110220011011002201101300220310313313302203313330220111313313
 trefoil 101210300120110121210110210030121
-torus 000001011000100101010011100101010010001101000000000101100010010101001110010101001000110100000000010110001001010100111001010100100011010000000001011000100101010011100101010010001101000`);
+torus 000001011000100101010011100101010010001101000000000101100010010101001110010101001000110100000000010110001001010100111001010100100011010000000001011000100101010011100101010010001101000`, 'Courtesy of Songming Hou');
 loadBuiltinFile('simple_loops_4-12.txt', `loop4_1 222
 loop6_1 13131
 loop6_2 12312
@@ -2874,7 +2882,7 @@ loop12_47 01303133113
 loop12_48 01311323113
 loop12_49 02123202321
 loop12_50 11213311331
-loop12_51 11331133113`);
+loop12_51 11331133113`, 'All primitive closed loops, 4–12 segments (complete)');
 loadBuiltinFile('pseudo_loops.txt', `loop7a 131012
 loop7b 132032
 loop9a 10120031
@@ -2890,12 +2898,13 @@ loop9j 12320231
 loop9k 12320313
 loop9l 12321132
 loop9m 13032302
-loop9n 13312102`);
+loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed');
 (function() {
   var tab = document.createElement('button');
   tab.className = 'builtin-tab';
   tab._figures = [];
   tab._fileName = 'simple_loops_14.txt';
+  tab._desc = 'All primitive closed loops, 14 segments (335 figures)';
   tab.textContent = 'simple_loops_14';
   tab.title = 'Loading…';
   tab.style.opacity = '0.5';
