@@ -307,6 +307,7 @@ span.cursor-mark {
       <tr><td>^←</td><td>Automatically unfold the snake (advance cursor left) at a steady pace, skipping straight joints</td></tr>
       <tr><td>↑ / ↓</td><td>Increment / decrement the digit just left of the cursor (wraps 0–3), updating the snake immediately</td></tr>
       <tr><td>Any other key</td><td>Stop the automatic folding/unfolding</td></tr>
+      <tr><td>Alt+→ / Alt+←</td><td>Cyclic rotation of the code (closed loops only): shifts which segment is first</td></tr>
     </table>
 
     <h3>Left panel</h3>
@@ -2275,6 +2276,25 @@ codeInput.addEventListener('keydown', function(e) {
   }
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault();
+    var r2 = parseCode(codeInput.value);
+    if (!r2.err) {
+      var cd2 = closingDigit(r2.digits);
+      if (cd2 >= 0) {
+        var full2 = r2.digits.concat([cd2]);
+        var N2 = full2.length;
+        var rot2 = e.key === 'ArrowRight'
+          ? [full2[N2-1]].concat(full2.slice(0, N2-1))
+          : full2.slice(1).concat([full2[0]]);
+        _undoPush();
+        codeInput.value = rot2.slice(0, N2-1).join('');
+        autoResizeCode();
+        applyCode();
+      }
+    }
+    return;
+  }
   if (rollMode && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
     var pos = codeInput.selectionStart;
     if (pos > 0) {
