@@ -2040,11 +2040,11 @@ function buildSnake(digits, fitCam) {
   if (isChiral(digits, _cd)) chiralEl.classList.add('visible');
   else chiralEl.classList.remove('visible');
 
-  // Self-intersection check
+  // Self-intersection check (suppressed during auto-fold animation)
   var _intersectionResult = null;
   try {
     _intersectionResult = checkIntersection(transforms);
-    if (_intersectionResult.hit) {
+    if (_intersectionResult.hit && !_foldAnimating) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
       var hp = [];
@@ -2460,8 +2460,10 @@ document.addEventListener('selectionchange', function() {
 });
 
 var _foldTimer = null;
+var _foldAnimating = false;
 function _stopFoldAnim() {
   if (_foldTimer !== null) { clearInterval(_foldTimer); _foldTimer = null; }
+  _foldAnimating = false;
 }
 function _startFoldAnim(dir) {
   if (!rollMode) { _setEditMode(true); }
@@ -2472,13 +2474,18 @@ function _startFoldAnim(dir) {
   if (codeInput.value !== raw) { var c = codeInput.selectionStart; codeInput.value = raw; codeInput.selectionStart = codeInput.selectionEnd = Math.min(c, raw.length); }
   codeInput.focus();
   _stopFoldAnim();
+  _foldAnimating = true;
   _foldTimer = setInterval(function() {
     var code = codeInput.value;
     var maxPos = code.length;
     var pos = codeInput.selectionStart;
     do {
       var next = dir > 0 ? Math.min(pos + 1, maxPos) : Math.max(pos - 1, 0);
-      if (next === pos) { _stopFoldAnim(); return; }
+      if (next === pos) {
+        codeInput.selectionStart = codeInput.selectionEnd = pos;
+        applyDisplay();
+        _stopFoldAnim(); return;
+      }
       var skipDigit = dir > 0 ? code[pos] : code[next];
       pos = next;
     } while (skipDigit === '0');
