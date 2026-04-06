@@ -2432,6 +2432,11 @@ function _setEditMode(on) {
   rollMode = on;
   codeInput.readOnly = !on;
   document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
+  if (!on) {
+    codeInput.blur();
+    _savedCursorPos = null;
+    updateCodeDisplay();
+  }
 }
 
 document.getElementById('toggle-fold').addEventListener('click', function() {
