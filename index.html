@@ -69,6 +69,17 @@ span.cursor-mark {
   pointer-events:none; white-space:nowrap;
 }
 #closed-indicator.visible { opacity:1; }
+#closing-digit {
+  font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
+  color:rgba(150,150,180,0.6); opacity:0; transition:opacity 0.2s;
+  pointer-events:none; white-space:nowrap;
+}
+#closing-digit.visible { opacity:1; }
+#chiral-indicator {
+  font-size:11px; color:#f90; opacity:0; transition:opacity 0.2s;
+  pointer-events:none; white-space:nowrap;
+}
+#chiral-indicator.visible { opacity:1; }
 
 .btn {
   padding:7px 14px; border:1px solid rgba(140,140,255,0.35);
@@ -216,7 +227,9 @@ span.cursor-mark {
       <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
+    <span id="closing-digit"></span>
     <span id="closed-indicator">✓</span>
+    <span id="chiral-indicator">chiral</span>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   </div>
@@ -1699,7 +1712,8 @@ function checkIntersection(transforms) {
 }
 
 // ─── CLOSED LOOP DETECTION ─────────────────────────────────────────────────────
-function isClosed(digits) {
+function closingDigit(digits) {
+  // Returns the digit (0-3) that closes the loop, or -1 if not closed.
   var transforms = buildChain(digits);
   var last = transforms[transforms.length - 1];
   var invLast = new THREE.Matrix4().copy(last).invert();
@@ -1723,9 +1737,37 @@ function isClosed(digits) {
     var diff = 0;
     var je = J.elements, ie = invLast.elements;
     for (var k = 0; k < 16; k++) diff = Math.max(diff, Math.abs(je[k] - ie[k]));
-    if (diff < 1e-6) return true;
+    if (diff < 1e-6) return d;
   }
-  return false;
+  return -1;
+}
+
+function isClosed(digits) { return closingDigit(digits) >= 0; }
+
+var _SWAP13 = [0, 3, 2, 1];
+
+function isChiral(digits, cd) {
+  // cd = closing digit (>=0 means closed loop), or -1 for open snake.
+  // Closed: chiral if swap13(full_seq) is not a cyclic rotation of fwd or rev.
+  // Open:   chiral if swap13(digits) != digits (no rotations, just direct check).
+  var sw, i, k, N, full, rev, rot;
+  if (cd >= 0) {
+    full = digits.concat([cd]);
+    N    = full.length;
+    sw   = full.map(function(x) { return _SWAP13[x]; });
+    rev  = full.slice().reverse();
+    for (k = 0; k < N; k++) {
+      rot = full.slice(k).concat(full.slice(0, k));
+      if (sw.join('') === rot.join('')) return false;
+      rot = rev.slice(k).concat(rev.slice(0, k));
+      if (sw.join('') === rot.join('')) return false;
+    }
+    return true;
+  } else {
+    sw = digits.map(function(x) { return _SWAP13[x]; });
+    for (i = 0; i < digits.length; i++) { if (sw[i] !== digits[i]) return true; }
+    return false;
+  }
 }
 
 // ─── CUBE-CRACK DETECTION ──────────────────────────────────────────────────────
@@ -1955,11 +1997,22 @@ function buildSnake(digits, fitCam) {
 
   var transforms = buildChain(digits);
 
-  // Closed-loop indicator
-  var figureClosed = isClosed(digits);
-  var closedEl = document.getElementById('closed-indicator');
-  if (figureClosed) closedEl.classList.add('visible');
-  else closedEl.classList.remove('visible');
+  // Closed-loop indicator + closing digit + chiral
+  var _cd = closingDigit(digits);
+  var figureClosed = (_cd >= 0);
+  var closedEl  = document.getElementById('closed-indicator');
+  var closeDigEl = document.getElementById('closing-digit');
+  var chiralEl  = document.getElementById('chiral-indicator');
+  if (figureClosed) {
+    closedEl.classList.add('visible');
+    closeDigEl.textContent = _cd;
+    closeDigEl.classList.add('visible');
+  } else {
+    closedEl.classList.remove('visible');
+    closeDigEl.classList.remove('visible');
+  }
+  if (isChiral(digits, _cd)) chiralEl.classList.add('visible');
+  else chiralEl.classList.remove('visible');
 
   // Self-intersection check
   var _intersectionResult = null;
