@@ -44,7 +44,7 @@ canvas { display:block; touch-action:none; }
 }
 #code-input {
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
-  padding:4px 12px; background:rgba(20,20,40,0.9);
+  padding:4px 9px 4px 12px; background:rgba(20,20,40,0.9);
   border:1px solid rgba(140,140,255,0.4); border-radius:6px;
   color:transparent; caret-color:#ddf; outline:none; text-align:left;
   resize:none; overflow:hidden; word-break:break-all;
@@ -71,15 +71,17 @@ span.cursor-mark {
 #closed-indicator.visible { opacity:1; }
 #closing-digit {
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
-  color:rgba(150,150,180,0.6); opacity:0; transition:opacity 0.2s;
+  color:#d8d8ff; opacity:0; transition:opacity 0.2s;
   pointer-events:none; white-space:nowrap;
 }
 #closing-digit.visible { opacity:1; }
 #chiral-indicator {
-  font-size:11px; color:#f90; opacity:0; transition:opacity 0.2s;
-  pointer-events:none; white-space:nowrap;
+  font-size:12px; color:#f90; opacity:0; transition:opacity 0.2s;
+  background:transparent; border:1px solid transparent; border-radius:6px;
+  cursor:pointer; padding:7px 10px; outline:none;
 }
-#chiral-indicator.visible { opacity:1; }
+#chiral-indicator.visible { opacity:1; border-color:rgba(255,153,0,0.4); }
+#chiral-indicator.active { background:rgba(255,153,0,0.18); border-color:rgba(255,153,0,0.7); }
 
 .btn {
   padding:7px 14px; border:1px solid rgba(140,140,255,0.35);
@@ -229,7 +231,7 @@ span.cursor-mark {
     </div>
     <span id="closing-digit"></span>
     <span id="closed-indicator">✓</span>
-    <span id="chiral-indicator">chiral</span>
+    <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">chiral</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   </div>
@@ -1745,6 +1747,28 @@ function closingDigit(digits) {
 function isClosed(digits) { return closingDigit(digits) >= 0; }
 
 var _SWAP13 = [0, 3, 2, 1];
+var _chiralModeActive = false;
+var _preChiralCode    = null;
+
+function toggleChiral() {
+  var chiralBtn = document.getElementById('chiral-indicator');
+  if (_chiralModeActive) {
+    codeInput.value = _preChiralCode;
+    _preChiralCode  = null;
+    _chiralModeActive = false;
+    chiralBtn.classList.remove('active');
+  } else {
+    var code    = codeInput.value.replace(/\s+/g, '');
+    var swapped = code.split('').map(function(c) { return _SWAP13[parseInt(c)]; }).join('');
+    _preChiralCode    = code;
+    _chiralModeActive = true;
+    codeInput.value   = swapped;
+    chiralBtn.classList.add('active');
+  }
+  var r = parseCode(codeInput.value);
+  if (!r.err) { try { buildSnake(r.digits, false); } catch(e) {} }
+  autoResizeCode();
+}
 
 function isChiral(digits, cd) {
   // cd = closing digit (>=0 means closed loop), or -1 for open snake.
@@ -2340,6 +2364,8 @@ function loadFigure(name, code) {
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   _savedCursorPos = null;
+  _chiralModeActive = false; _preChiralCode = null;
+  document.getElementById('chiral-indicator').classList.remove('active');
   if (rollMode) {
     rollMode = false;
     document.getElementById('toggle-fold').style.opacity = '0.5';
