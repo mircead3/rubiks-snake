@@ -61,7 +61,7 @@ span.cursor-mark {
 #code-overlay {
   position:absolute; inset:0; pointer-events:none; text-align:left;
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
-  padding:4px 12px; word-break:break-all; white-space:pre-wrap;
+  padding:4px 9px 4px 12px; word-break:break-all; white-space:pre-wrap;
   overflow:hidden; box-sizing:border-box; line-height:inherit;
 }
 #closed-indicator {
@@ -2212,7 +2212,7 @@ function updateCodeDisplay() {
 
 function autoResizeCode() {
   var chars = Math.min(getLength() - 1, 48);
-  codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 28px)';
+  codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 23px)';
   codeInput.style.height = 'auto';
   codeInput.style.height = codeInput.scrollHeight + 'px';
   updateCodeDisplay();
