@@ -51,6 +51,8 @@ canvas { display:block; touch-action:none; }
   box-sizing:border-box; vertical-align:top;
 }
 #code-input:focus { border-color:rgba(160,160,255,0.8); }
+#code-input[readonly] { cursor:default; }
+#code-input[readonly]:focus { border-color:rgba(140,140,255,0.4); }
 span.cursor-mark {
   display:inline-block; width:2px; height:1.1em;
   background:rgba(255,220,60,0.85); border-radius:1px;
@@ -226,7 +228,7 @@ span.cursor-mark {
     <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
     <input id="length-input" type="number" min="2" max="200" value="24">
     <div id="code-wrapper">
-      <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <span id="closing-digit"></span>
@@ -236,7 +238,7 @@ span.cursor-mark {
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   </div>
   <div id="view-row">
-    <button class="btn" id="toggle-fold" title="Fold mode: show snake up to cursor position">Fold</button>
+    <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
@@ -293,13 +295,13 @@ span.cursor-mark {
 
     <h3>View</h3>
     <table>
-      <tr><td>Fold</td><td>Toggle fold mode: snake is shown only up to the cursor position in the code; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step.</td></tr>
+      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>✓</td><td>Lights up when the figure forms a closed loop</td></tr>
     </table>
 
-    <h3>Fold mode shortcuts</h3>
+    <h3>Edit mode shortcuts</h3>
     <table>
       <tr><td>^→</td><td>Automatically fold the snake (advance cursor right) at a steady pace, skipping straight joints</td></tr>
       <tr><td>^←</td><td>Automatically unfold the snake (advance cursor left) at a steady pace, skipping straight joints</td></tr>
@@ -2162,7 +2164,13 @@ codeInput.addEventListener('focus', function() {
   updateCodeDisplay(); // hides the mark
 });
 codeInput.addEventListener('mousedown', function(e) {
-  if (_savedCursorPos !== null && document.activeElement !== codeInput) {
+  if (!rollMode) {
+    _setEditMode(true);
+    var endPos = codeInput.value.length;
+    codeInput.selectionStart = codeInput.selectionEnd = endPos;
+    _savedCursorPos = endPos;
+    applyDisplay();
+  } else if (_savedCursorPos !== null && document.activeElement !== codeInput) {
     e.preventDefault();
     var pos = _savedCursorPos;
     _savedCursorPos = null;
@@ -2366,10 +2374,7 @@ function loadFigure(name, code) {
   _savedCursorPos = null;
   _chiralModeActive = false; _preChiralCode = null;
   document.getElementById('chiral-indicator').classList.remove('active');
-  if (rollMode) {
-    rollMode = false;
-    document.getElementById('toggle-fold').style.opacity = '0.5';
-  }
+  if (rollMode) { _setEditMode(false); }
   pickSnakeColor();
   var n = code.length + 1;
   lengthInput.value = n;
@@ -2423,9 +2428,14 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
 
+function _setEditMode(on) {
+  rollMode = on;
+  codeInput.readOnly = !on;
+  document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
+}
+
 document.getElementById('toggle-fold').addEventListener('click', function() {
-  rollMode = !rollMode;
-  this.style.opacity = rollMode ? '1' : '0.5';
+  _setEditMode(!rollMode);
   if (rollMode) {
     var endPos = codeInput.value.length;
     codeInput.focus();
@@ -2449,10 +2459,7 @@ function _stopFoldAnim() {
   if (_foldTimer !== null) { clearInterval(_foldTimer); _foldTimer = null; }
 }
 function _startFoldAnim(dir) {
-  if (!rollMode) {
-    rollMode = true;
-    document.getElementById('toggle-fold').style.opacity = '1';
-  }
+  if (!rollMode) { _setEditMode(true); }
   // Ensure textarea value is padded so cursor can reach the end
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
