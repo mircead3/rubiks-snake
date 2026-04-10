@@ -96,10 +96,11 @@ span.cursor-mark {
 #left-panel {
   position:absolute; top:20px; left:16px;
   display:flex; flex-direction:column; align-items:flex-start; gap:6px;
-  pointer-events:none; user-select:none; width:180px;
+  pointer-events:none; user-select:none; width:260px;
 }
 #left-panel > * { pointer-events:all; }
-#builtin-tabs, #user-tabs { display:flex; flex-direction:column; gap:4px; width:180px; }
+#builtin-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; width:260px; }
+#user-tabs { display:flex; flex-direction:column; gap:4px; width:260px; }
 .panel-label {
   color:rgba(140,140,180,0.45); font-size:9px; letter-spacing:1.5px;
   text-transform:uppercase; margin-bottom:2px; padding-left:2px;
@@ -116,7 +117,7 @@ span.cursor-mark {
 .file-tab:hover { background:rgba(40,60,100,0.8); color:#aac; }
 .file-tab.active { background:rgba(20,35,60,0.9); color:#88bbff; border-color:rgba(80,140,220,0.55); }
 .builtin-tab {
-  padding:5px 10px; border:1px solid rgba(200,160,60,0.35);
+  padding:5px 7px; border:1px solid rgba(200,160,60,0.35);
   background:rgba(35,28,10,0.8); color:#aa8844; border-radius:8px;
   cursor:pointer; font-size:11px; text-align:left; outline:none; width:100%;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:all 0.15s;
@@ -125,7 +126,7 @@ span.cursor-mark {
 .builtin-tab.active { background:rgba(45,35,10,0.9); color:#ddbb77; border-color:rgba(200,160,60,0.6); }
 #active-figures {
   display:flex; flex-direction:column; gap:5px;
-  max-height:30vh; overflow-y:auto; width:180px;
+  max-height:50vh; overflow-y:auto; width:260px;
 }
 #active-figures:empty { display:none; }
 #active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
@@ -145,7 +146,7 @@ span.cursor-mark {
 #my-list-name:focus { border-color:rgba(160,160,255,0.7); }
 #my-list-figures {
   display:flex; flex-direction:column; gap:5px;
-  max-height:30vh; overflow-y:auto; width:180px;
+  max-height:30vh; overflow-y:auto; width:260px;
 }
 #my-list-figures:empty { display:none; }
 #my-list-figures:not(:empty) { margin-bottom:4px; }
@@ -1796,7 +1797,7 @@ function isChiral(digits, cd) {
 // M_c = rot180°Z + translate(1,1,0):  (x,y,z) → (1-x, 1-y, z)
 var _M_c = new THREE.Matrix4().set(-1,0,0,1, 0,-1,0,1, 0,0,1,0, 0,0,0,1);
 var _CRACK_MAT = new THREE.LineBasicMaterial({ color: 0x111111 });
-var _END_MAT = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide });
+var _END_MAT = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide });
 
 function buildCubeCracks(transforms) {
   var positions = [];
@@ -1849,7 +1850,7 @@ function buildEndMarkers(transforms) {
     var d = pairs[p];
     var norm = d.ln.clone().transformDirection(d.T);
     var pos  = d.lp.clone().applyMatrix4(d.T).addScaledVector(norm, eps);
-    var geo  = new THREE.CircleGeometry(0.2, 48); // new geo each time — avoids disposal on rebuild
+    var geo  = p === 0 ? new THREE.CircleGeometry(0.2, 48) : new THREE.CircleGeometry(0.2, 3);
     var mesh = new THREE.Mesh(geo, _END_MAT);
     mesh.position.copy(pos);
     mesh.quaternion.setFromUnitVectors(up, norm);
@@ -1910,6 +1911,7 @@ function buildSeamLines(transforms) {
 
 // ─── SEGMENT NUMBER LABELS ────────────────────────────────────────────────────
 var showNumbers = false;
+var collisionNumbers = false;
 var numberGroup  = null;
 var _spriteUpdateData = []; // precomputed face data for per-frame positioning
 
@@ -1953,7 +1955,7 @@ function highlightSprites(hitIndices) {
 function buildNumberSprites(transforms) {
   _spriteUpdateData = [];
   var g = new THREE.Group();
-  g.visible = showNumbers;
+  g.visible = showNumbers || collisionNumbers;
   for (var i = 0; i < transforms.length; i++) {
     var tex = makeNumTexture(i + 1);
     var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, opacity: 0.95 });
@@ -1974,7 +1976,7 @@ function buildNumberSprites(transforms) {
 }
 
 function updateNumberSprites() {
-  if (!showNumbers || !numberGroup || !numberGroup.visible || !snakeGroup) return;
+  if (!(showNumbers || collisionNumbers) || !numberGroup || !numberGroup.visible || !snakeGroup) return;
   // Camera position in snakeGroup local space (accounts for figure rotation)
   _camLocal.copy(camera.position);
   snakeGroup.worldToLocal(_camLocal);
@@ -2078,11 +2080,12 @@ function buildSnake(digits, fitCam) {
   snakeGroup.add(numberGroup);
   if (_intersectionResult && _intersectionResult.hit) {
     highlightSprites([_intersectionResult.a, _intersectionResult.b]);
-    if (!showNumbers && _foldTimer === null) document.getElementById('toggle-numbers').click();
+    collisionNumbers = true;
   } else {
     highlightSprites(null);
-    if (showNumbers) document.getElementById('toggle-numbers').click();
+    collisionNumbers = false;
   }
+  if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
 
   // Cube-crack lines
   var crackPos = buildCubeCracks(transforms);
@@ -2460,7 +2463,7 @@ document.getElementById('toggle-autorotate').addEventListener('click', function(
 document.getElementById('toggle-numbers').addEventListener('click', function() {
   showNumbers = !showNumbers;
   this.style.opacity = showNumbers ? '1' : '0.5';
-  if (numberGroup) numberGroup.visible = showNumbers;
+  if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
 
