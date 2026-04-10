@@ -1912,6 +1912,7 @@ function buildSeamLines(transforms) {
 // ─── SEGMENT NUMBER LABELS ────────────────────────────────────────────────────
 var showNumbers = false;
 var collisionNumbers = false;
+var _numberOffset = 0;
 var numberGroup  = null;
 var _spriteUpdateData = []; // precomputed face data for per-frame positioning
 
@@ -1943,10 +1944,12 @@ function highlightSprites(hitIndices) {
   _hitSegments = hitIndices;
   if (!numberGroup) return;
   var sprites = numberGroup.children;
-  for (var i = 0; i < sprites.length; i++) {
+  var N = sprites.length;
+  for (var i = 0; i < N; i++) {
     var isHit = hitIndices && hitIndices.indexOf(i) !== -1;
+    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
     var oldTex = sprites[i].material.map;
-    sprites[i].material.map = makeNumTexture(i + 1, '#000000');
+    sprites[i].material.map = makeNumTexture(label, isHit ? '#cc0000' : '#000000');
     sprites[i].material.needsUpdate = true;
     if (oldTex) oldTex.dispose();
   }
@@ -1956,8 +1959,10 @@ function buildNumberSprites(transforms) {
   _spriteUpdateData = [];
   var g = new THREE.Group();
   g.visible = showNumbers || collisionNumbers;
-  for (var i = 0; i < transforms.length; i++) {
-    var tex = makeNumTexture(i + 1);
+  var N = transforms.length;
+  for (var i = 0; i < N; i++) {
+    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
+    var tex = makeNumTexture(label);
     var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, opacity: 0.95 });
     var sprite = new THREE.Sprite(mat);
     sprite.scale.setScalar(0.5);
@@ -2234,16 +2239,17 @@ function parseCode(str) {
 
 var rollMode = false;
 
-function applyDisplay() {
+function applyDisplay(cursorOverride) {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
   while (raw.length < expected) raw += '0';
-  var cursor = codeInput.selectionStart;
+  var cursor = cursorOverride !== undefined ? cursorOverride : codeInput.selectionStart;
   var displayRaw = raw.slice(0, cursor) + '0'.repeat(raw.length - cursor);
   var r = parseCode(displayRaw);
   if (r.err) return;
   clearError();
   try { buildSnake(r.digits, false); } catch(e) {}
+  updateCodeDisplay();
   // Keep closing-digit indicator based on the full code, not the partial display.
   var rFull = parseCode(raw);
   if (!rFull.err) {
@@ -2381,6 +2387,11 @@ function loadFigure(name, code) {
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   _savedCursorPos = null;
+  _numberOffset = 0;
+  if (showNumbers) {
+    showNumbers = false;
+    document.getElementById('toggle-numbers').style.opacity = '0.5';
+  }
   _chiralModeActive = false; _preChiralCode = null;
   document.getElementById('chiral-indicator').classList.remove('active');
   if (rollMode) { _setEditMode(false); }
@@ -2412,6 +2423,9 @@ function _rotateCyclic(isRight) {
     ? [full2[N2-1]].concat(full2.slice(0, N2-1))
     : full2.slice(1).concat([full2[0]]);
   var p = rollMode ? codeInput.selectionStart : -1;
+  if (showNumbers) _numberOffset = isRight
+    ? ((_numberOffset - 1) % N2 + N2) % N2
+    : (_numberOffset + 1) % N2;
   _undoPush();
   codeInput.value = rot2.slice(0, N2-1).join('');
   autoResizeCode();
@@ -2419,7 +2433,7 @@ function _rotateCyclic(isRight) {
     var len = codeInput.value.length;
     var newP = ((p === 0 && !isRight) || (p === len && isRight)) ? p : p + (isRight ? 1 : -1);
     codeInput.selectionStart = codeInput.selectionEnd = newP;
-    applyDisplay();
+    applyDisplay(newP);
   } else {
     applyCode();
   }
@@ -2429,6 +2443,7 @@ document.addEventListener('keydown', function(e) {
   if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
       document.activeElement !== codeInput) {
     e.preventDefault();
+    if (rollMode) codeInput.focus();
     _rotateCyclic(e.key === 'ArrowRight');
     return;
   }
@@ -2462,6 +2477,7 @@ document.getElementById('toggle-autorotate').addEventListener('click', function(
 
 document.getElementById('toggle-numbers').addEventListener('click', function() {
   showNumbers = !showNumbers;
+  if (!showNumbers) _numberOffset = 0;
   this.style.opacity = showNumbers ? '1' : '0.5';
   if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
 });
@@ -2472,6 +2488,7 @@ function _setEditMode(on) {
   codeInput.readOnly = !on;
   document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
   if (!on) {
+    _numberOffset = 0;
     codeInput.blur();
     _savedCursorPos = null;
     updateCodeDisplay();
