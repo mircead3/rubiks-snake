@@ -2414,7 +2414,7 @@ function _rotateCyclic(isRight) {
   autoResizeCode();
   if (rollMode && p >= 0) {
     var len = codeInput.value.length;
-    var newP = (p === 0 || p === len) ? p : p + (isRight ? 1 : -1);
+    var newP = ((p === 0 && !isRight) || (p === len && isRight)) ? p : p + (isRight ? 1 : -1);
     codeInput.selectionStart = codeInput.selectionEnd = newP;
     applyDisplay();
   } else {
