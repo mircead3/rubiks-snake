@@ -2479,7 +2479,10 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
   showNumbers = !showNumbers;
   if (!showNumbers) _numberOffset = 0;
   this.style.opacity = showNumbers ? '1' : '0.5';
-  if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
+  if (numberGroup) {
+    numberGroup.visible = showNumbers || collisionNumbers;
+    if (showNumbers) highlightSprites(_hitSegments);
+  }
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
 
