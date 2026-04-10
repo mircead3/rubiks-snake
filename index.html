@@ -66,11 +66,6 @@ span.cursor-mark {
   padding:4px 9px 4px 12px; word-break:break-all; white-space:pre-wrap;
   overflow:hidden; box-sizing:border-box; line-height:inherit;
 }
-#closed-indicator {
-  font-size:12px; color:#6f6; opacity:0; transition:opacity 0.2s;
-  pointer-events:none; white-space:nowrap;
-}
-#closed-indicator.visible { opacity:1; }
 #closing-digit {
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
   color:#d8d8ff; opacity:0; transition:opacity 0.2s;
@@ -232,7 +227,6 @@ span.cursor-mark {
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <span id="closing-digit"></span>
-    <span id="closed-indicator">✓</span>
     <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">chiral</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
@@ -298,7 +292,6 @@ span.cursor-mark {
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
-      <tr><td>✓</td><td>Lights up when the figure forms a closed loop</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -2027,15 +2020,12 @@ function buildSnake(digits, fitCam) {
   // Closed-loop indicator + closing digit + chiral
   var _cd = closingDigit(digits);
   var figureClosed = (_cd >= 0);
-  var closedEl  = document.getElementById('closed-indicator');
   var closeDigEl = document.getElementById('closing-digit');
   var chiralEl  = document.getElementById('chiral-indicator');
   if (figureClosed) {
-    closedEl.classList.add('visible');
     closeDigEl.textContent = _cd;
     closeDigEl.classList.add('visible');
   } else {
-    closedEl.classList.remove('visible');
     closeDigEl.classList.remove('visible');
   }
   if (isChiral(digits, _cd)) chiralEl.classList.add('visible');
@@ -2212,7 +2202,7 @@ function updateCodeDisplay() {
       ? '#ff6060'
       : _CODE_COLORS[Math.floor(gi / 3) % 2];
     var dim = foldCursor >= 0 && gi >= foldCursor;
-    html += '<span style="color:' + col + (dim ? ';opacity:0.25' : '') + '">' + code[i] + '</span>';
+    html += '<span style="color:' + col + (dim ? ';opacity:0.45' : '') + '">' + code[i] + '</span>';
     gi++;
   }
   if (showMark && _savedCursorPos >= gi) html += '<span class="cursor-mark"></span>';
@@ -2251,6 +2241,16 @@ function applyDisplay() {
   if (r.err) return;
   clearError();
   try { buildSnake(r.digits, false); } catch(e) {}
+  // Keep closing-digit indicator based on the full code, not the partial display.
+  var rFull = parseCode(raw);
+  if (!rFull.err) {
+    var cd = closingDigit(rFull.digits);
+    if (cd >= 0) {
+      var cde = document.getElementById('closing-digit');
+      cde.textContent = cd;
+      cde.classList.add('visible');
+    }
+  }
 }
 
 function applyCode() {
@@ -2414,7 +2414,7 @@ function _rotateCyclic(isRight) {
   autoResizeCode();
   if (rollMode && p >= 0) {
     var len = codeInput.value.length;
-    var newP = (p === 0 || p === len) ? p : p + (isRight ? -1 : 1);
+    var newP = (p === 0 || p === len) ? p : p + (isRight ? 1 : -1);
     codeInput.selectionStart = codeInput.selectionEnd = newP;
     applyDisplay();
   } else {
