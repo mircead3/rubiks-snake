@@ -290,8 +290,8 @@ span.cursor-mark {
 
     <h3>View</h3>
     <table>
-      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode.</td></tr>
-      <tr><td>1,2,3</td><td>Toggle segment number labels</td></tr>
+      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode. Auto-rotation stops on entry.</td></tr>
+      <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection (without turning the button on).</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
     </table>
 
@@ -300,8 +300,9 @@ span.cursor-mark {
       <tr><td>^→</td><td>Automatically fold the snake (advance cursor right) at a steady pace, skipping straight joints</td></tr>
       <tr><td>^←</td><td>Automatically unfold the snake (advance cursor left) at a steady pace, skipping straight joints</td></tr>
       <tr><td>↑ / ↓</td><td>Increment / decrement the digit just left of the cursor (wraps 0–3), updating the snake immediately</td></tr>
+      <tr><td>→ / ←</td><td>Move the fold cursor one step</td></tr>
       <tr><td>Any other key</td><td>Stop the automatic folding/unfolding</td></tr>
-      <tr><td>Alt+→ / Alt+←</td><td>Cyclic rotation of the code (closed loops only): shifts which segment is first</td></tr>
+      <tr><td>Alt+→ / Alt+←</td><td>Cyclic rotation (closed loops) or shift with 0-padding (open snakes): changes which segment is first</td></tr>
     </table>
 
     <h3>Left panel</h3>
@@ -2290,6 +2291,7 @@ codeInput.addEventListener('keydown', function(e) {
     _rotateCyclic(e.key === 'ArrowRight');
     return;
   }
+  if (rollMode && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); return; }
   if (rollMode && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
     var pos = codeInput.selectionStart;
     if (pos > 0) {
@@ -2416,18 +2418,26 @@ function _rotateCyclic(isRight) {
   var r2 = parseCode(codeInput.value);
   if (r2.err) return;
   var cd2 = closingDigit(r2.digits);
-  if (cd2 < 0) return;
-  var full2 = r2.digits.concat([cd2]);
-  var N2 = full2.length;
-  var rot2 = isRight
-    ? [full2[N2-1]].concat(full2.slice(0, N2-1))
-    : full2.slice(1).concat([full2[0]]);
+  var newDigits, N2;
+  if (cd2 >= 0) {
+    var full2 = r2.digits.concat([cd2]);
+    N2 = full2.length;
+    var rot2 = isRight
+      ? [full2[N2-1]].concat(full2.slice(0, N2-1))
+      : full2.slice(1).concat([full2[0]]);
+    newDigits = rot2.slice(0, N2-1);
+  } else {
+    N2 = r2.digits.length + 1;
+    newDigits = isRight
+      ? [0].concat(r2.digits.slice(0, r2.digits.length - 1))
+      : r2.digits.slice(1).concat([0]);
+  }
   var p = rollMode ? codeInput.selectionStart : -1;
   if (showNumbers) _numberOffset = isRight
     ? ((_numberOffset - 1) % N2 + N2) % N2
     : (_numberOffset + 1) % N2;
   _undoPush();
-  codeInput.value = rot2.slice(0, N2-1).join('');
+  codeInput.value = newDigits.join('');
   autoResizeCode();
   if (rollMode && p >= 0) {
     var len = codeInput.value.length;
@@ -2445,6 +2455,16 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     if (rollMode) codeInput.focus();
     _rotateCyclic(e.key === 'ArrowRight');
+    return;
+  }
+  if (rollMode && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+      (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && document.activeElement !== codeInput) {
+    e.preventDefault();
+    codeInput.focus();
+    var pos = codeInput.selectionStart;
+    var newPos = e.key === 'ArrowRight' ? Math.min(codeInput.value.length, pos + 1) : Math.max(0, pos - 1);
+    codeInput.selectionStart = codeInput.selectionEnd = newPos;
+    applyDisplay(newPos);
     return;
   }
   if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -2490,6 +2510,10 @@ function _setEditMode(on) {
   rollMode = on;
   codeInput.readOnly = !on;
   document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
+  if (on && autoRotate) {
+    autoRotate = false;
+    document.getElementById('toggle-autorotate').style.opacity = '0.5';
+  }
   if (!on) {
     _numberOffset = 0;
     codeInput.blur();
