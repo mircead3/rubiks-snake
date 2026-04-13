@@ -1628,10 +1628,14 @@ function pickSnakeColor() {
   var c = choices[Math.floor(Math.random() * choices.length)];
   _lastSnakeColor = c;
   MAT_A.color.setHex(c);
+  _INNER_MAT_A.color.setHex(c);
 }
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_HIT = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 120, specular: new THREE.Color(0x888888) });
+// Inner rectangle materials (MeshBasicMaterial = unlit, solid color)
+var _INNER_MAT_A = new THREE.MeshBasicMaterial({ color: 0xD42B2B }); // colored – for insets on white segments
+var _INNER_MAT_B = new THREE.MeshBasicMaterial({ color: 0xF0F0F0 }); // white  – for insets on colored segments
 
 // ─── CHAIN BUILDING ────────────────────────────────────────────────────────────
 // Notation: 0=straight, 1=90°, 2=180°(fold), 3=270°
@@ -1987,11 +1991,12 @@ function buildEndMarkers(transforms) {
 }
 
 function buildSeamLines(transforms) {
-  var positions = [];
+  // posA/normA: lines on even (colored) segments → draw white (opposite)
+  // posB/normB: lines on odd  (white)   segments → draw colored (opposite)
+  var posA=[], normA=[], posB=[], normB=[];
   var n = transforms.length;
   var eps = 0.003, matchEps = 1e-4;
   var S2 = 1/Math.SQRT2;
-  // Each face: local normal + all 4 edges [x0,y0,z0,x1,y1,z1]
   var faceDefs = [
     { norm:[0,-1,0],  edges:[[0,0,0,1,0,0],[0,0,1,1,0,1],[0,0,0,0,0,1],[1,0,0,1,0,1]] },  // y=0
     { norm:[-1,0,0],  edges:[[0,0,0,0,1,0],[0,0,1,0,1,1],[0,0,0,0,0,1],[0,1,0,0,1,1]] },  // x=0
@@ -2020,12 +2025,15 @@ function buildSeamLines(transforms) {
             if ((p0i.distanceTo(p0j)<matchEps && p1i.distanceTo(p1j)<matchEps) ||
                 (p0i.distanceTo(p1j)<matchEps && p1i.distanceTo(p0j)<matchEps)) {
               var r=1/matchEps;
-              var k=[p0i.x,p0i.y,p0i.z,p1i.x,p1i.y,p1i.z].map(function(v){return Math.round(v*r);}).join(',');
-              if (!seen[k]) {
-                seen[k]=true;
+              var sk=[p0i.x,p0i.y,p0i.z,p1i.x,p1i.y,p1i.z].map(function(v){return Math.round(v*r);}).join(',');
+              if (!seen[sk]) {
+                seen[sk]=true;
                 var Q0=p0i.clone().addScaledVector(ni,eps);
                 var Q1=p1i.clone().addScaledVector(ni,eps);
-                positions.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
+                var pos = (i % 2 === 0) ? posA : posB;
+                var nrm = (i % 2 === 0) ? normA : normB;
+                pos.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
+                nrm.push(ni.x, ni.y, ni.z);
               }
             }
           }
@@ -2033,7 +2041,86 @@ function buildSeamLines(transforms) {
       }
     }
   }
-  return positions;
+  return { posA:posA, normA:normA, posB:posB, normB:normB };
+}
+
+// Build thin quad geometry for a set of seam lines (positions + per-line face normals).
+function buildSeamQuads(positions, normals, hw) {
+  var verts = [];
+  var d=new THREE.Vector3(), w=new THREE.Vector3(), nv=new THREE.Vector3();
+  var P0=new THREE.Vector3(), P1=new THREE.Vector3();
+  for (var k=0; k<normals.length; k++) {
+    var b=k*6;
+    P0.set(positions[b],positions[b+1],positions[b+2]);
+    P1.set(positions[b+3],positions[b+4],positions[b+5]);
+    nv.set(normals[k*3],normals[k*3+1],normals[k*3+2]);
+    d.subVectors(P1,P0).normalize();
+    w.crossVectors(d,nv).multiplyScalar(hw);
+    var ax=P0.x-w.x,ay=P0.y-w.y,az=P0.z-w.z;
+    var bx=P0.x+w.x,by=P0.y+w.y,bz=P0.z+w.z;
+    var cx=P1.x+w.x,cy=P1.y+w.y,cz=P1.z+w.z;
+    var dx=P1.x-w.x,dy=P1.y-w.y,dz=P1.z-w.z;
+    verts.push(ax,ay,az, bx,by,bz, cx,cy,cz, ax,ay,az, cx,cy,cz, dx,dy,dz);
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
+  return geo;
+}
+
+// ─── INNER RECT DECORATION ────────────────────────────────────────────────────
+// Adds a smaller inset rectangle of the opposite color to each rectangular face.
+// Even segments (colored) get white insets; odd segments (white) get colored insets.
+function buildInnerRects(transforms) {
+  var mL = 0.075;           // margin along the long edge of each face
+  var mS = 0.04;            // margin along the short edge (z / prism depth)
+  var ep = 0.004;           // outward offset to avoid z-fighting
+  var s2 = Math.SQRT2;
+
+  // y=0 face: 1×1 square; long dir = x, short dir = z
+  function cornersY0() {
+    return [[mL, -ep, mS], [1-mL, -ep, mS], [1-mL, -ep, 1-mS], [mL, -ep, 1-mS]];
+  }
+  // x=0 face: 1×1 square; long dir = y, short dir = z
+  function cornersX0() {
+    return [[-ep, mL, mS], [-ep, 1-mL, mS], [-ep, 1-mL, 1-mS], [-ep, mL, 1-mS]];
+  }
+  // Hyp face: √2×1 rect; long dir = diagonal (t, world length √2), short dir = z (u, world length 1)
+  // P(t,u) = (1-t, t, u); world-space margin mL along t → mt = mL/√2
+  function cornersHyp() {
+    var mt = mL / s2, mu = mS;
+    var ox = ep / s2, oy = ep / s2;
+    function P(t, u) { return [1-t+ox, t+oy, u]; }
+    return [P(mt, mu), P(1-mt, mu), P(1-mt, 1-mu), P(mt, 1-mu)];
+  }
+
+  var aPos = [], bPos = []; // a=colored (for odd segs), b=white (for even segs)
+
+  for (var i = 0; i < transforms.length; i++) {
+    var tf = transforms[i];
+    var pos = (i % 2 === 0) ? bPos : aPos; // even→white inset, odd→colored inset
+
+    [cornersY0(), cornersX0(), cornersHyp()].forEach(function(fc) {
+      var p = fc.map(function(c) {
+        var v = new THREE.Vector3(c[0], c[1], c[2]).applyMatrix4(tf);
+        return [v.x, v.y, v.z];
+      });
+      pos.push(p[0][0],p[0][1],p[0][2], p[1][0],p[1][1],p[1][2], p[2][0],p[2][1],p[2][2]);
+      pos.push(p[0][0],p[0][1],p[0][2], p[2][0],p[2][1],p[2][2], p[3][0],p[3][1],p[3][2]);
+    });
+  }
+
+  var group = new THREE.Group();
+  if (bPos.length > 0) {
+    var gb = new THREE.BufferGeometry();
+    gb.setAttribute('position', new THREE.Float32BufferAttribute(bPos, 3));
+    group.add(new THREE.Mesh(gb, _INNER_MAT_B));
+  }
+  if (aPos.length > 0) {
+    var ga = new THREE.BufferGeometry();
+    ga.setAttribute('position', new THREE.Float32BufferAttribute(aPos, 3));
+    group.add(new THREE.Mesh(ga, _INNER_MAT_A));
+  }
+  return group;
 }
 
 // ─── SEGMENT NUMBER LABELS ────────────────────────────────────────────────────
@@ -2229,13 +2316,16 @@ function buildSnake(digits, fitCam) {
     snakeGroup.add(new THREE.LineSegments(crackGeo, _CRACK_MAT));
   }
 
-  // Seam lines between coplanar adjacent rectangular faces
-  var seamPos = buildSeamLines(transforms);
-  if (seamPos.length > 0) {
-    var seamGeo = new THREE.BufferGeometry();
-    seamGeo.setAttribute('position', new THREE.Float32BufferAttribute(seamPos, 3));
-    snakeGroup.add(new THREE.LineSegments(seamGeo, _CRACK_MAT));
-  }
+  // Seam lines between coplanar adjacent rectangular faces (thick quads, opposite color)
+  var hw = 0.03; // half-width of seam quad
+  var seamData = buildSeamLines(transforms);
+  if (seamData.posA.length > 0)  // even (colored) segs → white opposite
+    snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posA, seamData.normA, hw), _INNER_MAT_B));
+  if (seamData.posB.length > 0)  // odd (white) segs → colored opposite
+    snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posB, seamData.normB, hw), _INNER_MAT_A));
+
+  // Inner rect decorations on rectangular faces
+  snakeGroup.add(buildInnerRects(transforms));
 
   // End markers on open figures
   if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
