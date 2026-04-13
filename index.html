@@ -2128,89 +2128,113 @@ var showNumbers = false;
 var collisionNumbers = false;
 var _numberOffset = 0;
 var numberGroup  = null;
-var _spriteUpdateData = []; // precomputed face data for per-frame positioning
+var _lastTransforms = null; // saved so highlightNumberFaces can update without full rebuild
 
-// Face centers and outward normals in local prism coords
-var _FACES_LOCAL = [
-  { pos: new THREE.Vector3(0.5,  0,   0.5), norm: new THREE.Vector3( 0, -1,  0) }, // y=0
-  { pos: new THREE.Vector3(0,    0.5, 0.5), norm: new THREE.Vector3(-1,  0,  0) }, // x=0
-  { pos: new THREE.Vector3(0.5,  0.5, 0.5), norm: new THREE.Vector3( 1/Math.SQRT2, 1/Math.SQRT2, 0) }, // hypotenuse
-  { pos: new THREE.Vector3(1/3,  1/3, 0),   norm: new THREE.Vector3( 0,  0, -1) }, // z=0 triangle
-  { pos: new THREE.Vector3(1/3,  1/3, 1),   norm: new THREE.Vector3( 0,  0,  1) }, // z=1 triangle
-];
-var _camLocal  = new THREE.Vector3();
-var _toCamera  = new THREE.Vector3();
-
-function makeNumTexture(n, color) {
+// Texture cache: label (integer) → CanvasTexture (white text on transparent bg).
+// Reused across figure loads; never disposed (small and bounded by max segment count).
+var _numTexCache = {};
+function getNumTexture(n) {
+  if (_numTexCache[n]) return _numTexCache[n];
   var label = String(n);
+  var nd = label.length;
+  var cw = nd === 1 ? 64 : nd === 2 ? 96 : 128;
   var canvas = document.createElement('canvas');
-  canvas.width = 64; canvas.height = 64;
+  canvas.width = cw; canvas.height = 64;
   var ctx = canvas.getContext('2d');
-  ctx.fillStyle = color || '#000000';
-  ctx.font = 'bold ' + (label.length > 2 ? '18px' : '22px') + ' sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 48px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, 32, 32);
+  ctx.fillText(label, cw / 2, 32);
   var tex = new THREE.CanvasTexture(canvas);
+  _numTexCache[n] = tex;
   return tex;
 }
 
-function highlightSprites(hitIndices) {
-  _hitSegments = hitIndices;
-  if (!numberGroup) return;
-  var sprites = numberGroup.children;
-  var N = sprites.length;
-  for (var i = 0; i < N; i++) {
-    var isHit = hitIndices && hitIndices.indexOf(i) !== -1;
-    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
-    var oldTex = sprites[i].material.map;
-    sprites[i].material.map = makeNumTexture(label, isHit ? '#cc0000' : '#000000');
-    sprites[i].material.needsUpdate = true;
-    if (oldTex) oldTex.dispose();
-  }
+// Face defs in local prism coords: center (with outward ep offset), right/up tangents.
+// right×up must equal the outward face normal so front-face is visible from outside.
+// rect:true  → has inner rect; number color = same as segment (contrasts with opposite-color inner rect)
+// rect:false → no inner rect;  number color = opposite of segment (contrasts with face itself)
+// sc: size scale (triangular faces get slightly smaller numbers)
+var _NUM_FACE_DEFS = (function() {
+  var ep = 0.006, s2 = 1 / Math.SQRT2, t = 1 / 3;
+  return [
+    // Rectangular faces
+    { cx:0.5,        cy:-ep,        cz:0.5, rx:1,  ry:0,  rz:0,  ux:0, uy:0, uz:1, rect:true,  sc:1.00 }, // y=0,  normal (0,-1,0)
+    { cx:-ep,        cy:0.5,        cz:0.5, rx:0,  ry:0,  rz:1,  ux:0, uy:1, uz:0, rect:true,  sc:1.00 }, // x=0,  normal (-1,0,0)
+    { cx:0.5+ep*s2,  cy:0.5+ep*s2,  cz:0.5, rx:-s2,ry:s2, rz:0,  ux:0, uy:0, uz:1, rect:true,  sc:1.00 }, // hyp,  normal (s2,s2,0)
+    // Triangular end faces
+    { cx:t,          cy:t,          cz:-ep, rx:-1, ry:0,  rz:0,  ux:0, uy:1, uz:0, rect:false, sc:0.85 }, // z=0,  normal (0,0,-1)
+    { cx:t,          cy:t,          cz:1+ep,rx:1,  ry:0,  rz:0,  ux:0, uy:1, uz:0, rect:false, sc:0.85 }, // z=1,  normal (0,0,+1)
+  ];
+})();
+
+function makeNumQuadGeo(fd, hw, hh) {
+  // UV-mapped quad: right=fd.r*, up=fd.u*, centered at fd.c*
+  var ax=fd.cx-hw*fd.rx-hh*fd.ux, ay=fd.cy-hw*fd.ry-hh*fd.uy, az=fd.cz-hw*fd.rz-hh*fd.uz;
+  var bx=fd.cx+hw*fd.rx-hh*fd.ux, by=fd.cy+hw*fd.ry-hh*fd.uy, bz=fd.cz+hw*fd.rz-hh*fd.uz;
+  var cx=fd.cx+hw*fd.rx+hh*fd.ux, cy=fd.cy+hw*fd.ry+hh*fd.uy, cz=fd.cz+hw*fd.rz+hh*fd.uz;
+  var dx=fd.cx-hw*fd.rx+hh*fd.ux, dy=fd.cy-hw*fd.ry+hh*fd.uy, dz=fd.cz-hw*fd.rz+hh*fd.uz;
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(
+    [ax,ay,az, bx,by,bz, cx,cy,cz,  ax,ay,az, cx,cy,cz, dx,dy,dz], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(
+    [0,0, 1,0, 1,1,  0,0, 1,1, 0,1], 2));
+  return geo;
 }
 
-function buildNumberSprites(transforms) {
-  _spriteUpdateData = [];
-  var g = new THREE.Group();
-  g.visible = showNumbers || collisionNumbers;
+function buildNumberFaces(transforms) {
+  _lastTransforms = transforms;
   var N = transforms.length;
+  var g = new THREE.Group();
   for (var i = 0; i < N; i++) {
     var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
-    var tex = makeNumTexture(label);
-    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, opacity: 0.95 });
-    var sprite = new THREE.Sprite(mat);
-    sprite.scale.setScalar(0.5);
-    g.add(sprite);
-    // Precompute face world-positions and normals in snakeGroup local space
-    var faces = [];
-    for (var f = 0; f < _FACES_LOCAL.length; f++) {
-      faces.push({
-        pos:  _FACES_LOCAL[f].pos.clone().applyMatrix4(transforms[i]),
-        norm: _FACES_LOCAL[f].norm.clone().transformDirection(transforms[i])
-      });
+    var nd = String(label).length;
+    var tex = getNumTexture(label);
+    for (var f = 0; f < _NUM_FACE_DEFS.length; f++) {
+      var fd = _NUM_FACE_DEFS[f];
+      var hw = fd.sc * (nd === 1 ? 0.12 : nd === 2 ? 0.18 : 0.24);
+      var hh = fd.sc * 0.12;
+      // rect faces: number same color as segment → contrasts with opposite-colored inner rect
+      // tri  faces: number opposite to segment   → contrasts with face itself
+      var col = fd.rect
+        ? ((i % 2 === 0) ? _lastSnakeColor : 0xFFFFFF)
+        : ((i % 2 === 0) ? 0xFFFFFF : _lastSnakeColor);
+      var mesh = new THREE.Mesh(
+        makeNumQuadGeo(fd, hw, hh),
+        new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.1, side: THREE.DoubleSide, color: col })
+      );
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.copy(transforms[i]);
+      mesh.matrixWorldNeedsUpdate = true;
+      mesh.userData.segIdx = i;
+      mesh.userData.isNumFace = true;
+      mesh.userData.faceIsRect = fd.rect;
+      g.add(mesh);
     }
-    _spriteUpdateData.push({ sprite: sprite, faces: faces });
   }
   return g;
 }
 
-function updateNumberSprites() {
-  if (!(showNumbers || collisionNumbers) || !numberGroup || !numberGroup.visible || !snakeGroup) return;
-  // Camera position in snakeGroup local space (accounts for figure rotation)
-  _camLocal.copy(camera.position);
-  snakeGroup.worldToLocal(_camLocal);
-  for (var i = 0; i < _spriteUpdateData.length; i++) {
-    var sd = _spriteUpdateData[i];
-    var bestDot = -1, bestFace = sd.faces[0];
-    for (var f = 0; f < sd.faces.length; f++) {
-      _toCamera.subVectors(_camLocal, sd.faces[f].pos).normalize();
-      var dot = _toCamera.dot(sd.faces[f].norm);
-      if (dot > bestDot) { bestDot = dot; bestFace = sd.faces[f]; }
-    }
-    sd.sprite.visible = bestDot > 0.25;
-    if (sd.sprite.visible) {
-      sd.sprite.position.copy(bestFace.pos).addScaledVector(bestFace.norm, 0.04);
-    }
+function highlightNumberFaces(hitIndices) {
+  _hitSegments = hitIndices;
+  if (!numberGroup || !_lastTransforms) return;
+  var N = _lastTransforms.length;
+  var children = numberGroup.children;
+  for (var k = 0; k < children.length; k++) {
+    var child = children[k];
+    var i = child.userData.segIdx;
+    if (i === undefined) continue;
+    var isHit = hitIndices && hitIndices.indexOf(i) !== -1;
+    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
+    var isRect = child.userData.faceIsRect;
+    var col;
+    if (isHit) col = 0xff6600;
+    else if (isRect) col = (i % 2 === 0) ? _lastSnakeColor : 0xFFFFFF;
+    else              col = (i % 2 === 0) ? 0xFFFFFF : _lastSnakeColor;
+    var newTex = getNumTexture(label);
+    if (child.material.map !== newTex) { child.material.map = newTex; }
+    child.material.color.setHex(col);
+    child.material.needsUpdate = true;
   }
 }
 
@@ -2229,9 +2253,12 @@ function buildSnake(digits, fitCam) {
   // Remove old snake
   if (snakeGroup) {
     snakeGroup.traverse(function(o) {
-    if (o.geometry) o.geometry.dispose();
-    if (o.isSprite && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
-  });
+      if (o.geometry) o.geometry.dispose();
+      // Dispose per-instance materials (number face quads); shared materials (MAT_A/B etc.) are kept.
+      if (o.userData && o.userData.isNumFace && o.material) o.material.dispose();
+      // Legacy: dispose old sprite materials if any
+      if (o.isSprite && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    });
     scene.remove(snakeGroup);
     snakeGroup = null;
   }
@@ -2296,14 +2323,14 @@ function buildSnake(digits, fitCam) {
     mesh.matrixWorldNeedsUpdate = true;
     snakeGroup.add(mesh);
   }
-  // Segment number sprites
-  numberGroup = buildNumberSprites(transforms);
+  // Segment number labels (baked onto prism faces)
+  numberGroup = buildNumberFaces(transforms);
   snakeGroup.add(numberGroup);
   if (_intersectionResult && _intersectionResult.hit) {
-    highlightSprites([_intersectionResult.a, _intersectionResult.b]);
+    highlightNumberFaces([_intersectionResult.a, _intersectionResult.b]);
     collisionNumbers = true;
   } else {
-    highlightSprites(null);
+    highlightNumberFaces(null);
     collisionNumbers = false;
   }
   if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
@@ -2576,7 +2603,6 @@ function animate(now) {
     if (autoRotate && !userInteracting && snakeGroup) {
       snakeGroup.rotateOnWorldAxis(_rotAxisY, dt * 0.35);
     }
-    updateNumberSprites();
     renderer.render(scene, camera);
     _processNextThumbnail();
   } catch(e) {
@@ -2743,7 +2769,7 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
   this.style.opacity = showNumbers ? '1' : '0.5';
   if (numberGroup) {
     numberGroup.visible = showNumbers || collisionNumbers;
-    if (showNumbers) highlightSprites(_hitSegments);
+    if (showNumbers) highlightNumberFaces(_hitSegments);
   }
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
