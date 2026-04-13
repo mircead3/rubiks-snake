@@ -79,6 +79,7 @@ span.cursor-mark {
 }
 #chiral-indicator.visible { opacity:1; border-color:rgba(255,153,0,0.4); }
 #chiral-indicator.active { background:rgba(255,153,0,0.18); border-color:rgba(255,153,0,0.7); }
+#chiral-indicator.geo-chiral::after { content:'*'; font-size:10px; vertical-align:super; margin-left:1px; }
 
 .btn {
   padding:7px 14px; border:1px solid rgba(140,140,255,0.35);
@@ -293,6 +294,7 @@ span.cursor-mark {
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode. Auto-rotation stops on entry.</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection (without turning the button on).</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
+      <tr><td>chiral</td><td>Appears when the figure's code sequence is not equivalent to its mirror image (swap 1↔3 in joints). Click to toggle the mirror view. A superscript <strong>*</strong> means the 3D shape itself is geometrically chiral — the solid cannot be rotated to match its mirror image.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -1792,6 +1794,130 @@ function isChiral(digits, cd) {
   }
 }
 
+// ─── GEOMETRIC CHIRALITY CHECK ────────────────────────────────────────────────
+// Non-chiral = swap13 shape is superimposable on original by a proper rotation.
+// All joint rotation matrices have det=+1, so R = B_rot[j]*A_rot[0]^T is always
+// a proper rotation. We just need to find a j where R maps ALL transforms correctly.
+// This handles non-cyclic symmetries (e.g. the ball's cube symmetry group).
+// Complexity: O(N^3) — fast enough for N≤200.
+function isChiralGeometric(transforms, digits) {
+  // A shape is geometrically chiral if it cannot be superimposed on its mirror image
+  // by a proper rotation + translation.  The mirror image is the swap13 chain.
+  // Algorithm: build vertex clouds A (original) and B (swap13), translate both to
+  // their centroid, then search for a proper rotation R mapping A → B as sets.
+  // If found → achiral (e.g. ball).  If not → chiral (e.g. loop10_3).
+
+  var LV = [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,0,1],[0,1,1]]; // triangular prism vertices
+
+  function getVerts(tfList) {
+    var s = {};
+    for (var i = 0; i < tfList.length; i++) {
+      var e = tfList[i].elements;
+      for (var v = 0; v < 6; v++) {
+        var vv = LV[v];
+        var x = Math.round((e[0]*vv[0]+e[4]*vv[1]+e[8]*vv[2]+e[12])*1e3)/1e3;
+        var y = Math.round((e[1]*vv[0]+e[5]*vv[1]+e[9]*vv[2]+e[13])*1e3)/1e3;
+        var z = Math.round((e[2]*vv[0]+e[6]*vv[1]+e[10]*vv[2]+e[14])*1e3)/1e3;
+        s[x+','+y+','+z] = [x,y,z];
+      }
+    }
+    return Object.values(s);
+  }
+
+  var swTf = buildChain(digits.map(function(d){return _SWAP13[d];}));
+  var A = getVerts(transforms);
+  var B = getVerts(swTf);
+  if (A.length !== B.length) return true;
+
+  // Translate both to centroid
+  var n = A.length, mA=[0,0,0], mB=[0,0,0];
+  for (var i=0; i<n; i++) { mA[0]+=A[i][0]; mA[1]+=A[i][1]; mA[2]+=A[i][2]; }
+  for (var i=0; i<n; i++) { mB[0]+=B[i][0]; mB[1]+=B[i][1]; mB[2]+=B[i][2]; }
+  mA[0]/=n; mA[1]/=n; mA[2]/=n;
+  mB[0]/=n; mB[1]/=n; mB[2]/=n;
+  for (var i=0; i<n; i++) A[i]=[A[i][0]-mA[0],A[i][1]-mA[1],A[i][2]-mA[2]];
+  for (var i=0; i<n; i++) B[i]=[B[i][0]-mB[0],B[i][1]-mB[1],B[i][2]-mB[2]];
+
+  // Lookup for B: round to 3 decimal places
+  var bLookup = {};
+  for (var i=0; i<n; i++) {
+    var k=Math.round(B[i][0]*1e3)+','+Math.round(B[i][1]*1e3)+','+Math.round(B[i][2]*1e3);
+    bLookup[k]=true;
+  }
+  function inB(p) {
+    var k=Math.round(p[0]*1e3)+','+Math.round(p[1]*1e3)+','+Math.round(p[2]*1e3);
+    return !!bLookup[k];
+  }
+
+  // Check if rotation matrix R (row-major) maps all of A into B
+  function checkRot(R) {
+    for (var i=0; i<n; i++) {
+      var p=A[i];
+      if (!inB([R[0]*p[0]+R[1]*p[1]+R[2]*p[2],
+                R[3]*p[0]+R[4]*p[1]+R[5]*p[2],
+                R[6]*p[0]+R[7]*p[1]+R[8]*p[2]])) return false;
+    }
+    return true;
+  }
+
+  // Build rotation from two non-parallel anchor pairs (a0→b0, a1→b1).
+  // Returns proper rotation or null.
+  function makeRot(a0,b0,a1,b1) {
+    var la=Math.sqrt(a0[0]*a0[0]+a0[1]*a0[1]+a0[2]*a0[2]);
+    var lb=Math.sqrt(b0[0]*b0[0]+b0[1]*b0[1]+b0[2]*b0[2]);
+    if (la<1e-7||lb<1e-7||Math.abs(la-lb)>0.05) return null;
+    var u1=[a0[0]/la,a0[1]/la,a0[2]/la], v1=[b0[0]/lb,b0[1]/lb,b0[2]/lb];
+    var d1=a1[0]*u1[0]+a1[1]*u1[1]+a1[2]*u1[2];
+    var ap=[a1[0]-d1*u1[0],a1[1]-d1*u1[1],a1[2]-d1*u1[2]];
+    var lap=Math.sqrt(ap[0]*ap[0]+ap[1]*ap[1]+ap[2]*ap[2]);
+    if (lap<1e-6) return null;
+    var d2=b1[0]*v1[0]+b1[1]*v1[1]+b1[2]*v1[2];
+    var bp=[b1[0]-d2*v1[0],b1[1]-d2*v1[1],b1[2]-d2*v1[2]];
+    var lbp=Math.sqrt(bp[0]*bp[0]+bp[1]*bp[1]+bp[2]*bp[2]);
+    if (lbp<1e-6||Math.abs(lap-lbp)>0.05) return null;
+    var u2=[ap[0]/lap,ap[1]/lap,ap[2]/lap], v2=[bp[0]/lbp,bp[1]/lbp,bp[2]/lbp];
+    var u3=[u1[1]*u2[2]-u1[2]*u2[1],u1[2]*u2[0]-u1[0]*u2[2],u1[0]*u2[1]-u1[1]*u2[0]];
+    var v3=[v1[1]*v2[2]-v1[2]*v2[1],v1[2]*v2[0]-v1[0]*v2[2],v1[0]*v2[1]-v1[1]*v2[0]];
+    // R = [v1|v2|v3] * [u1|u2|u3]^T   (maps u_k → v_k)
+    var U=[u1,u2,u3], V=[v1,v2,v3], R=[];
+    for (var i=0; i<3; i++) for (var j=0; j<3; j++) {
+      var s=0; for (var k=0; k<3; k++) s+=V[k][i]*U[k][j]; R.push(s);
+    }
+    // Verify det ≈ +1
+    var det=R[0]*(R[4]*R[8]-R[5]*R[7])-R[1]*(R[3]*R[8]-R[5]*R[6])+R[2]*(R[3]*R[7]-R[4]*R[6]);
+    if (Math.abs(det-1)>0.1) return null;
+    return R;
+  }
+
+  // Pick first non-zero anchor a0 from A
+  var a0=null, la0=0;
+  for (var i=0; i<n; i++) {
+    var l=Math.sqrt(A[i][0]*A[i][0]+A[i][1]*A[i][1]+A[i][2]*A[i][2]);
+    if (l>1e-6) { a0=A[i]; la0=l; break; }
+  }
+  if (!a0) return false; // degenerate
+
+  // Pick a1 not parallel to a0
+  var a1=null;
+  for (var i=0; i<n; i++) {
+    var p=A[i];
+    var cx=a0[1]*p[2]-a0[2]*p[1], cy=a0[2]*p[0]-a0[0]*p[2], cz=a0[0]*p[1]-a0[1]*p[0];
+    if (cx*cx+cy*cy+cz*cz>0.01) { a1=p; break; }
+  }
+  if (!a1) return false; // degenerate
+
+  // Search over (b0, b1) candidates from B
+  for (var j=0; j<n; j++) {
+    if (Math.abs(Math.sqrt(B[j][0]*B[j][0]+B[j][1]*B[j][1]+B[j][2]*B[j][2])-la0)>0.05) continue;
+    for (var l=0; l<n; l++) {
+      if (l===j) continue;
+      var R=makeRot(a0,B[j],a1,B[l]);
+      if (R && checkRot(R)) return false; // proper rotation found → achiral
+    }
+  }
+  return true; // no proper rotation → chiral
+}
+
 // ─── CUBE-CRACK DETECTION ──────────────────────────────────────────────────────
 // Two pieces form a cube when T_i⁻¹·T_j ≈ M_c, where M_c maps the companion
 // prism (occupying the x+y≥1 half of a unit cube) into piece i's local frame.
@@ -2038,6 +2164,8 @@ function buildSnake(digits, fitCam) {
   }
   if (isChiral(digits, _cd)) chiralEl.classList.add('visible');
   else chiralEl.classList.remove('visible');
+  if (isChiralGeometric(transforms, digits)) chiralEl.classList.add('geo-chiral');
+  else chiralEl.classList.remove('geo-chiral');
 
   // Self-intersection check (suppressed during auto-fold animation)
   var _intersectionResult = null;
@@ -2190,9 +2318,11 @@ function clearError() {
   updateCodeDisplay();
 }
 
+var MAX_SEGMENTS = 200;
 function getLength() {
   var v = parseInt(lengthInput.value, 10);
-  return (isNaN(v) || v < 2) ? 24 : v;
+  if (isNaN(v) || v < 2) return 24;
+  return Math.min(v, MAX_SEGMENTS);
 }
 
 var _CODE_COLORS = ['#7ec8ff', '#ffc87e'];
@@ -2332,10 +2462,18 @@ codeInput.addEventListener('input', function() {
   applyCode();
 });
 lengthInput.addEventListener('change', function() {
-  var max = getLength() - 1;
-  if (codeInput.value.length > max) codeInput.value = '';
+  var clamped = getLength();
+  lengthInput.value = clamped;
+  var max = clamped - 1;
+  var cur = codeInput.value;
+  if (cur.length > max) {
+    codeInput.value = cur.slice(0, max);
+  } else if (cur.length < max) {
+    codeInput.value = cur + new Array(max - cur.length + 1).join('0');
+  }
   autoResizeCode();
   clearError();
+  applyCode();
 });
 
 // ─── RENDER LOOP ───────────────────────────────────────────────────────────────
@@ -2465,6 +2603,20 @@ document.addEventListener('keydown', function(e) {
     var newPos = e.key === 'ArrowRight' ? Math.min(codeInput.value.length, pos + 1) : Math.max(0, pos - 1);
     codeInput.selectionStart = codeInput.selectionEnd = newPos;
     applyDisplay(newPos);
+    return;
+  }
+  if (rollMode && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement !== codeInput) {
+    e.preventDefault();
+    codeInput.focus();
+    var pos = codeInput.selectionStart;
+    if (pos > 0) {
+      _undoPush();
+      var d = (parseInt(codeInput.value[pos - 1], 10) + (e.key === 'ArrowUp' ? 1 : 3)) % 4;
+      codeInput.value = codeInput.value.slice(0, pos - 1) + d + codeInput.value.slice(pos);
+      codeInput.selectionStart = codeInput.selectionEnd = pos;
+      applyCode();
+    }
     return;
   }
   if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -3005,65 +3157,65 @@ loop8_1 0123032
 loop8_2 1232123
 loop10_1 001230012
 loop10_2 001310031
-loop10_3 001310113
-loop10_4 002101303
-loop10_5 002133113
-loop10_6 011320331
-loop10_7 012012102
-loop10_8 012302321
+loop10_3 002101303
+loop10_4 002133113
+loop10_5 011320331
+loop10_6 012302321
+loop10_7 001310113
+loop10_8 012012102
 loop10_9 013120131
 loop10_10 013120213
 loop12_1 00012300032
 loop12_2 00101200303
 loop12_3 00120031002
 loop12_4 00120113302
-loop12_5 00120120013
-loop12_6 00120120331
-loop12_7 00120121112
-loop12_8 00123002123
-loop12_9 00123202303
-loop12_10 00123302101
-loop12_11 00130013001
-loop12_12 00130323013
-loop12_13 00130323331
-loop12_14 00130331101
-loop12_15 00132023203
-loop12_16 00132031021
-loop12_17 00132033023
-loop12_18 00200200200
-loop12_19 00200210203
-loop12_20 00201210101
-loop12_21 01101201101
-loop12_22 01101233013
-loop12_23 01101233331
-loop12_24 01101303303
-loop12_25 01101311031
-loop12_26 01101311113
-loop12_27 01123033113
-loop12_28 01123203101
-loop12_29 01123211013
-loop12_30 01123211331
-loop12_31 01131013023
-loop12_32 01131021201
-loop12_33 01132302102
-loop12_34 01132332303
-loop12_35 01133113303
-loop12_36 01133121031
-loop12_37 01133121113
-loop12_38 01201213321
-loop12_39 01210132023
-loop12_40 01210203230
-loop12_41 01213313023
-loop12_42 01230201230
-loop12_43 01233231303
-loop12_44 01233313203
-loop12_45 01233321021
-loop12_46 01303101303
-loop12_47 01303133113
-loop12_48 01311323113
-loop12_49 02123202321
-loop12_50 11213311331
-loop12_51 11331133113`, 'All primitive closed loops, 4–12 segments (complete)');
+loop12_5 00123002123
+loop12_6 00130013001
+loop12_7 00130331101
+loop12_8 00132031021
+loop12_9 00200200200
+loop12_10 00200210203
+loop12_11 01101303303
+loop12_12 01133113303
+loop12_13 01210203230
+loop12_14 01230201230
+loop12_15 01303101303
+loop12_16 01303133113
+loop12_17 02123202321
+loop12_18 11331133113
+loop12_19 00120120013
+loop12_20 00120120331
+loop12_21 00120121112
+loop12_22 00123202303
+loop12_23 00123302101
+loop12_24 00130323013
+loop12_25 00130323331
+loop12_26 00132023203
+loop12_27 00132033023
+loop12_28 00201210101
+loop12_29 01101201101
+loop12_30 01101233013
+loop12_31 01101233331
+loop12_32 01101311031
+loop12_33 01101311113
+loop12_34 01123033113
+loop12_35 01123203101
+loop12_36 01123211013
+loop12_37 01123211331
+loop12_38 01131013023
+loop12_39 01131021201
+loop12_40 01132302102
+loop12_41 01132332303
+loop12_42 01133121031
+loop12_43 01133121113
+loop12_44 01201213321
+loop12_45 01210132023
+loop12_46 01213313023
+loop12_47 01233231303
+loop12_48 01233313203
+loop12_49 01233321021
+loop12_50 01311323113
+loop12_51 11213311331`, 'All primitive closed loops, 4–12 segments (complete). Courtesy of Songming Hou');
 loadBuiltinFile('pseudo_loops.txt', `loop7a 131012
 loop7b 132032
 loop9a 10120031
@@ -3079,7 +3231,7 @@ loop9j 12320231
 loop9k 12320313
 loop9l 12321132
 loop9m 13032302
-loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed');
+loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed. Courtesy of Songming Hou');
 (function() {
   var tab = document.createElement('button');
   tab.className = 'builtin-tab';
