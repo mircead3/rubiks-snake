@@ -3348,13 +3348,13 @@ loop9k 12320313
 loop9l 12321132
 loop9m 13032302
 loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed. Courtesy of Songming Hou');
-(function() {
+function _addFetchTab(fileName, desc) {
   var tab = document.createElement('button');
   tab.className = 'builtin-tab';
   tab._figures = [];
-  tab._fileName = 'simple_loops_14.txt';
-  tab._desc = 'All primitive closed loops, 14 segments (335 figures)';
-  tab.textContent = 'simple_loops_14';
+  tab._fileName = fileName;
+  tab._desc = desc;
+  tab.textContent = fileName.replace('.txt', '');
   tab.title = 'Loading…';
   tab.style.opacity = '0.5';
   tab.style.fontStyle = 'italic';
@@ -3370,8 +3370,7 @@ loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed
     }
   });
   document.getElementById('builtin-tabs').appendChild(tab);
-
-  fetch('./simple_loops_14.txt')
+  fetch('./' + fileName)
     .then(function(r) { if (r.ok) return r.text(); throw new Error(); })
     .then(function(text) {
       var lines = text.split(/\r?\n/);
@@ -3381,51 +3380,12 @@ loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed
       tab._loaded = true;
       tab.style.opacity = '';
       tab.style.fontStyle = '';
-      tab.title = 'simple_loops_14.txt';
+      tab.title = fileName;
     })
-    .catch(function() {
-      tab.parentNode && tab.parentNode.removeChild(tab);
-    });
-})();
-(function() {
-  var tab = document.createElement('button');
-  tab.className = 'builtin-tab';
-  tab._figures = [];
-  tab._fileName = 'simple_loops_16.txt';
-  tab._desc = 'All primitive closed loops, 16 segments (2841 figures)';
-  tab.textContent = 'simple_loops_16';
-  tab.title = 'Loading…';
-  tab.style.opacity = '0.5';
-  tab.style.fontStyle = 'italic';
-  tab.addEventListener('click', function() {
-    if (!tab._loaded) return;
-    if (tab.classList.contains('active')) {
-      tab.classList.remove('active');
-      document.getElementById('active-figures').innerHTML = '';
-      _setHoveredFigureBtn(null);
-      _activeListTab = null;
-    } else {
-      _showFileTab(tab, tab._figures);
-    }
-  });
-  document.getElementById('builtin-tabs').appendChild(tab);
-
-  fetch('./simple_loops_16.txt')
-    .then(function(r) { if (r.ok) return r.text(); throw new Error(); })
-    .then(function(text) {
-      var lines = text.split(/\r?\n/);
-      var figures = [];
-      for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
-      tab._figures = figures;
-      tab._loaded = true;
-      tab.style.opacity = '';
-      tab.style.fontStyle = '';
-      tab.title = 'simple_loops_16.txt';
-    })
-    .catch(function() {
-      tab.parentNode && tab.parentNode.removeChild(tab);
-    });
-})();
+    .catch(function() { tab.parentNode && tab.parentNode.removeChild(tab); });
+}
+_addFetchTab('simple_loops_14.txt', 'All primitive closed loops, 14 segments (335 figures)');
+_addFetchTab('simple_loops_16.txt', 'All primitive closed loops, 16 segments (2841 figures)');
 autoResizeCode();
 loadFigure('Ball', '13113311313313113311313');
 requestAnimationFrame(animate);
