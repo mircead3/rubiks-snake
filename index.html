@@ -2224,6 +2224,13 @@ function getNumTexture(n) {
   ctx.font = 'bold 48px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, cw / 2, 32);
+  // Underline any label containing '6' so it can't be confused with '9' when rotated 180°
+  if (label.indexOf('6') !== -1) {
+    var metrics = ctx.measureText(label);
+    var uw = Math.min(metrics.width + 4, cw - 4);
+    var uy = 57;  // near bottom of 64px canvas
+    ctx.fillRect(Math.round((cw - uw) / 2), uy, Math.round(uw), 3);
+  }
   var tex = new THREE.CanvasTexture(canvas);
   _numTexCache[n] = tex;
   return tex;
