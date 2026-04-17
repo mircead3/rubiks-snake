@@ -10,9 +10,15 @@ body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-se
 canvas { display:block; touch-action:none; }
 
 #ui {
-  position:absolute; top:20px; left:50%; transform:translateX(-30%);
+  position:absolute; top:20px; left:280px; right:280px;
   text-align:center; user-select:none; white-space:nowrap;
 }
+#right-panel {
+  position:absolute; top:20px; right:16px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+  pointer-events:none; user-select:none; width:260px;
+}
+#right-panel > * { pointer-events:all; }
 #title-row { margin-bottom:12px; }
 #title-row h1 {
   color:#d8d8ff; font-size:18px; font-weight:400; letter-spacing:5px;
@@ -75,9 +81,9 @@ span.cursor-mark {
 #chiral-indicator {
   font-size:12px; color:#f90; opacity:0; transition:opacity 0.2s;
   background:transparent; border:1px solid transparent; border-radius:6px;
-  cursor:pointer; padding:7px 10px; outline:none;
+  cursor:pointer; padding:7px 10px; outline:none; pointer-events:none;
 }
-#chiral-indicator.visible { opacity:1; border-color:rgba(255,153,0,0.4); }
+#chiral-indicator.visible { opacity:1; border-color:rgba(255,153,0,0.4); pointer-events:all; }
 #chiral-indicator.active { background:rgba(255,153,0,0.18); border-color:rgba(255,153,0,0.7); }
 #chiral-indicator.geo-chiral::after { content:'*'; font-size:10px; vertical-align:super; margin-left:1px; }
 
@@ -172,7 +178,7 @@ span.cursor-mark {
 }
 .file-btn:hover .fig-del, .file-btn.kb-focus .fig-del { opacity:0.5; }
 .fig-del:hover { opacity:1 !important; }
-#compose-panel { width:260px; }
+#compose-panel { width:100%; }
 #compose-s-info { font-size:11px; color:rgba(255,180,80,0.9); margin-bottom:4px; padding-left:2px; }
 #compose-l-row { margin-bottom:4px; padding-left:2px; }
 #compose-l-info { font-size:11px; color:rgba(255,180,80,0.9); display:flex; align-items:center; gap:6px; }
@@ -260,7 +266,7 @@ span.cursor-mark {
 </div>
 
 
-<div id="left-panel">
+<div id="right-panel">
   <div id="compose-panel" style="display:none">
     <div class="panel-label" style="color:rgba(255,170,60,0.8)">Compose mode</div>
     <div id="compose-s-info"></div>
@@ -274,19 +280,22 @@ span.cursor-mark {
     <div id="compose-a-row" style="display:none" class="compose-input-row">
       <span class="compose-lbl">a</span>
       <button class="compose-step" id="compose-a-dec">◀</button>
-      <input class="compose-num" id="compose-a-input" type="number" min="0" value="0">
+      <input class="compose-num" id="compose-a-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-a-inc">▶</button>
       <span class="compose-max" id="compose-a-max"></span>
     </div>
     <div id="compose-b-row" style="display:none" class="compose-input-row">
       <span class="compose-lbl">b</span>
       <button class="compose-step" id="compose-b-dec">◀</button>
-      <input class="compose-num" id="compose-b-input" type="number" min="0" value="0">
+      <input class="compose-num" id="compose-b-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-b-inc">▶</button>
       <span class="compose-max" id="compose-b-max"></span>
     </div>
     <div class="panel-divider"></div>
   </div>
+</div>
+
+<div id="left-panel">
   <div id="library-section">
     <div class="panel-label">Collections</div>
     <div id="builtin-tabs"></div>
@@ -3467,17 +3476,17 @@ function _composeUpdate() {
 }
 
 function _composeSetA(val) {
-  // closed: a in 0..m-2 (m-1 choices); open: a in 0..m-1 (m choices)
+  // closed: a in 0..m-2 (m-1 choices); open: a in 0..m-1 (m choices); val is 1-based
   var sLen = _composeS ? (_composeS.closed ? _composeS.digits.length : _composeS.digits.length + 1) : 1;
-  _composeA = ((val % sLen) + sLen) % sLen;
-  document.getElementById('compose-a-input').value = _composeA;
+  _composeA = ((( val - 1) % sLen) + sLen) % sLen;  // convert 1-based input to 0-based internal
+  document.getElementById('compose-a-input').value = _composeA + 1;
   _composeUpdate();
 }
 
 function _composeSetB(val) {
   var n = _composeL ? _composeL.full.length : 1;
-  _composeB = ((val % n) + n) % n;
-  document.getElementById('compose-b-input').value = _composeB;
+  _composeB = (((val - 1) % n) + n) % n;  // convert 1-based input to 0-based internal
+  document.getElementById('compose-b-input').value = _composeB + 1;
   _composeUpdate();
 }
 
@@ -3501,8 +3510,8 @@ function _composeSelectL(fig) {
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-l-info').style.display = 'flex';
   var n = full.length;
-  document.getElementById('compose-b-input').value = 0;
-  document.getElementById('compose-b-max').textContent = '0–' + (n - 1);
+  document.getElementById('compose-b-input').value = 1;
+  document.getElementById('compose-b-max').textContent = '1–' + n;
   document.getElementById('compose-b-row').style.display = 'flex';
   _composeUpdate();
 }
@@ -3511,9 +3520,10 @@ function _updateComposeSInfo() {
   if (!_composeS) return;
   var el = document.getElementById('compose-s-info');
   var m = _composeS.digits.length + 1;  // m segments; code stores m-1 digits
-  var sMax = _composeS.closed ? m - 2 : m - 1;  // closed: a in 0..m-2; open: 0..m-1
-  document.getElementById('compose-a-input').value = _composeA;
-  document.getElementById('compose-a-max').textContent = '0–' + sMax;
+  // closed: a in 1..m-1 (m-1 distinct choices); open: 1..m
+  var sMaxDisplay = _composeS.closed ? m - 1 : m;
+  document.getElementById('compose-a-input').value = _composeA + 1;
+  document.getElementById('compose-a-max').textContent = '1–' + sMaxDisplay;
   el.textContent = (_composeS.closed ? 'closed' : 'open') + ', ' + m + ' seg';
 }
 
@@ -3531,6 +3541,12 @@ function _enterComposeMode() {
   document.getElementById('compose-b-row').style.display = 'none';
   _updateComposeSInfo();
   document.getElementById('compose-a-row').style.display = 'flex';
+
+  if (!showNumbers) {
+    showNumbers = true;
+    document.getElementById('toggle-numbers').style.opacity = '1';
+    if (numberGroup) { numberGroup.visible = true; highlightNumberFaces(_hitSegments); }
+  }
 
   var btnC = document.getElementById('btn-compose');
   btnC.style.background = 'rgba(180,100,20,0.5)';
@@ -3559,16 +3575,17 @@ document.getElementById('btn-compose').addEventListener('click', function() {
 
 document.getElementById('compose-l-clear').addEventListener('click', _composeClearL);
 
-document.getElementById('compose-a-dec').addEventListener('click', function() { _composeSetA(_composeA - 1); });
-document.getElementById('compose-a-inc').addEventListener('click', function() { _composeSetA(_composeA + 1); });
-document.getElementById('compose-b-dec').addEventListener('click', function() { _composeSetB(_composeB - 1); });
-document.getElementById('compose-b-inc').addEventListener('click', function() { _composeSetB(_composeB + 1); });
+// ◀/▶ — _composeSetA/B take 1-based values; _composeA/B are stored 0-based
+document.getElementById('compose-a-dec').addEventListener('click', function() { _composeSetA(_composeA); });    // display is _composeA+1, decrement → _composeA+1-1 = _composeA
+document.getElementById('compose-a-inc').addEventListener('click', function() { _composeSetA(_composeA + 2); }); // increment → _composeA+1+1 = _composeA+2
+document.getElementById('compose-b-dec').addEventListener('click', function() { _composeSetB(_composeB); });
+document.getElementById('compose-b-inc').addEventListener('click', function() { _composeSetB(_composeB + 2); });
 
 document.getElementById('compose-a-input').addEventListener('change', function() {
-  _composeSetA(parseInt(this.value, 10) || 0);
+  _composeSetA(parseInt(this.value, 10) || 1);
 });
 document.getElementById('compose-b-input').addEventListener('change', function() {
-  _composeSetB(parseInt(this.value, 10) || 0);
+  _composeSetB(parseInt(this.value, 10) || 1);
 });
 
 function _addFetchTab(fileName, desc) {
