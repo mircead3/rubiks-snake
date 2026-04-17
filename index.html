@@ -269,20 +269,19 @@ span.cursor-mark {
 <div id="right-panel">
   <div id="compose-panel" style="display:none">
     <div class="panel-label" style="color:rgba(255,170,60,0.8)">Compose mode</div>
-    <div id="compose-s-info"></div>
-    <div id="compose-l-row">
-      <div id="compose-l-prompt" class="panel-label">↓ click a closed loop below</div>
-      <div id="compose-l-info" style="display:none">
-        <span id="compose-l-name"></span>
-        <button id="compose-l-clear" title="Clear loop selection">✕</button>
-      </div>
-    </div>
     <div id="compose-a-row" style="display:none" class="compose-input-row">
       <span class="compose-lbl">a</span>
       <button class="compose-step" id="compose-a-dec">◀</button>
       <input class="compose-num" id="compose-a-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-a-inc">▶</button>
       <span class="compose-max" id="compose-a-max"></span>
+    </div>
+    <div id="compose-l-row">
+      <div id="compose-l-prompt" class="panel-label">Select a closed snake</div>
+      <div id="compose-l-info" style="display:none">
+        <span id="compose-l-name"></span>
+        <button id="compose-l-clear" title="Clear loop selection">✕</button>
+      </div>
     </div>
     <div id="compose-b-row" style="display:none" class="compose-input-row">
       <span class="compose-lbl">b</span>
@@ -3465,6 +3464,7 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
 
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
+  _undoPush();
   var res = _joinLoops(_composeS.digits, _composeS.closed,
                        _composeL.full, _composeA, _composeB);
   var code = res.join('');
@@ -3516,17 +3516,6 @@ function _composeSelectL(fig) {
   _composeUpdate();
 }
 
-function _updateComposeSInfo() {
-  if (!_composeS) return;
-  var el = document.getElementById('compose-s-info');
-  var m = _composeS.digits.length + 1;  // m segments; code stores m-1 digits
-  // closed: a in 1..m-1 (m-1 distinct choices); open: 1..m
-  var sMaxDisplay = _composeS.closed ? m - 1 : m;
-  document.getElementById('compose-a-input').value = _composeA + 1;
-  document.getElementById('compose-a-max').textContent = '1–' + sMaxDisplay;
-  el.textContent = (_composeS.closed ? 'closed' : 'open') + ', ' + m + ' seg';
-}
-
 function _enterComposeMode() {
   var r = parseCode(codeInput.value);
   if (r.err) return;
@@ -3535,11 +3524,15 @@ function _enterComposeMode() {
   _composeA = 0;
   _composeL = null;
 
+  var m = r.digits.length + 1;
+  var sMaxDisplay = closed ? m - 1 : m;
+
   document.getElementById('compose-panel').style.display = 'block';
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
   document.getElementById('compose-b-row').style.display = 'none';
-  _updateComposeSInfo();
+  document.getElementById('compose-a-input').value = 1;
+  document.getElementById('compose-a-max').textContent = '1–' + sMaxDisplay;
   document.getElementById('compose-a-row').style.display = 'flex';
 
   if (!showNumbers) {
