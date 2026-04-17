@@ -273,9 +273,8 @@ span.cursor-mark {
 
 <div id="right-panel">
   <div id="compose-panel" style="display:none">
-    <div class="panel-label" style="color:rgba(255,170,60,0.8)">Compose mode</div>
     <div id="compose-l-row">
-      <div id="compose-l-prompt" class="panel-label">Select a closed snake</div>
+      <div id="compose-l-prompt" class="panel-label" style="color:rgba(255,170,60,0.8)">Select a closed snake</div>
     </div>
     <div id="compose-s-name" style="display:none"></div>
     <div id="compose-a-row" style="display:none" class="compose-input-row">
@@ -2906,7 +2905,18 @@ function _setEditMode(on) {
   if (on && _composeMode) _exitComposeMode();
   rollMode = on;
   codeInput.readOnly = !on;
-  document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
+  var btnE = document.getElementById('toggle-fold');
+  if (on) {
+    btnE.style.opacity = '1';
+    btnE.style.background = 'rgba(180,100,20,0.5)';
+    btnE.style.borderColor = 'rgba(255,160,40,0.8)';
+    btnE.style.color = '#ffcc66';
+  } else {
+    btnE.style.opacity = '0.5';
+    btnE.style.background = '';
+    btnE.style.borderColor = '';
+    btnE.style.color = '';
+  }
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   if (on && autoRotate) {
@@ -2934,6 +2944,7 @@ document.getElementById('toggle-fold').addEventListener('click', function() {
   }
 });
 document.getElementById('toggle-fold').style.opacity = '0.5';
+document.getElementById('btn-compose').style.opacity = '0.5';
 
 document.addEventListener('selectionchange', function() {
   if (rollMode && document.activeElement === codeInput) {
@@ -3666,6 +3677,7 @@ function _enterComposeMode() {
   document.getElementById('btn-undo').disabled = true;
 
   var btnC = document.getElementById('btn-compose');
+  btnC.style.opacity = '1';
   btnC.style.background = 'rgba(180,100,20,0.5)';
   btnC.style.borderColor = 'rgba(255,160,40,0.8)';
   btnC.style.color = '#ffcc66';
@@ -3688,6 +3700,7 @@ function _exitComposeMode() {
   document.getElementById('compose-a-row').style.display = 'none';
   document.getElementById('compose-b-row').style.display = 'none';
   var btnC = document.getElementById('btn-compose');
+  btnC.style.opacity = '0.5';
   btnC.style.background = '';
   btnC.style.borderColor = '';
   btnC.style.color = '';
