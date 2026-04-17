@@ -1689,9 +1689,11 @@ function pickSnakeColor() {
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_HIT = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 120, specular: new THREE.Color(0x888888) });
+var MAT_L = new THREE.MeshPhongMaterial({ color: 0xE07B00, shininess: 120, specular: new THREE.Color(0x888888) });
 // Inner rectangle materials (MeshBasicMaterial = unlit, solid color)
 var _INNER_MAT_A = new THREE.MeshBasicMaterial({ color: 0xD42B2B }); // colored – for insets on white segments
 var _INNER_MAT_B = new THREE.MeshBasicMaterial({ color: 0xF0F0F0 }); // white  – for insets on colored segments
+var _INNER_MAT_L = new THREE.MeshBasicMaterial({ color: 0xE07B00 }); // l-block color – for insets on white l-block segments
 
 // ─── CHAIN BUILDING ────────────────────────────────────────────────────────────
 // Notation: 0=straight, 1=90°, 2=180°(fold), 3=270°
@@ -2046,10 +2048,11 @@ function buildEndMarkers(transforms) {
   return group;
 }
 
-function buildSeamLines(transforms) {
-  // posA/normA: lines on even (colored) segments → draw white (opposite)
-  // posB/normB: lines on odd  (white)   segments → draw colored (opposite)
-  var posA=[], normA=[], posB=[], normB=[];
+function buildSeamLines(transforms, lBlock) {
+  // posA/normA: lines on even segments → draw white (opposite)
+  // posB/normB: lines on odd s-block segments → draw s-color (opposite)
+  // posL/normL: lines on odd l-block segments → draw l-color (opposite)
+  var posA=[], normA=[], posB=[], normB=[], posL=[], normL=[];
   var n = transforms.length;
   var eps = 0.003, matchEps = 1e-4;
   var S2 = 1/Math.SQRT2;
@@ -2086,8 +2089,10 @@ function buildSeamLines(transforms) {
                 seen[sk]=true;
                 var Q0=p0i.clone().addScaledVector(ni,eps);
                 var Q1=p1i.clone().addScaledVector(ni,eps);
-                var pos = (i % 2 === 0) ? posA : posB;
-                var nrm = (i % 2 === 0) ? normA : normB;
+                var pos, nrm;
+                if (i % 2 === 0) { pos = posA; nrm = normA; }
+                else if (lBlock && lBlock[i]) { pos = posL; nrm = normL; }
+                else { pos = posB; nrm = normB; }
                 pos.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
                 nrm.push(ni.x, ni.y, ni.z);
               }
@@ -2097,7 +2102,7 @@ function buildSeamLines(transforms) {
       }
     }
   }
-  return { posA:posA, normA:normA, posB:posB, normB:normB };
+  return { posA:posA, normA:normA, posB:posB, normB:normB, posL:posL, normL:normL };
 }
 
 // Build thin quad geometry for a set of seam lines (positions + per-line face normals).
@@ -2126,7 +2131,7 @@ function buildSeamQuads(positions, normals, hw) {
 // ─── INNER RECT DECORATION ────────────────────────────────────────────────────
 // Adds a smaller inset rectangle of the opposite color to each rectangular face.
 // Even segments (colored) get white insets; odd segments (white) get colored insets.
-function buildInnerRects(transforms) {
+function buildInnerRects(transforms, lBlock) {
   var mL = 0.075;           // margin along the long edge of each face
   var mS = 0.04;            // margin along the short edge (z / prism depth)
   var ep = 0.004;           // outward offset to avoid z-fighting
@@ -2149,11 +2154,14 @@ function buildInnerRects(transforms) {
     return [P(mt, mu), P(1-mt, mu), P(1-mt, 1-mu), P(mt, 1-mu)];
   }
 
-  var aPos = [], bPos = []; // a=colored (for odd segs), b=white (for even segs)
+  var aPos = [], bPos = [], lPos = []; // a=s-color (odd s-block), b=white (even), l=l-color (odd l-block)
 
   for (var i = 0; i < transforms.length; i++) {
     var tf = transforms[i];
-    var pos = (i % 2 === 0) ? bPos : aPos; // even→white inset, odd→colored inset
+    var pos;
+    if (i % 2 === 0) pos = bPos;                            // even → white inset
+    else if (lBlock && lBlock[i]) pos = lPos;               // odd l-block → l-color inset
+    else pos = aPos;                                         // odd s-block → s-color inset
 
     [cornersY0(), cornersX0(), cornersHyp()].forEach(function(fc) {
       var p = fc.map(function(c) {
@@ -2176,6 +2184,11 @@ function buildInnerRects(transforms) {
     ga.setAttribute('position', new THREE.Float32BufferAttribute(aPos, 3));
     group.add(new THREE.Mesh(ga, _INNER_MAT_A));
   }
+  if (lPos.length > 0) {
+    var gl = new THREE.BufferGeometry();
+    gl.setAttribute('position', new THREE.Float32BufferAttribute(lPos, 3));
+    group.add(new THREE.Mesh(gl, _INNER_MAT_L));
+  }
   return group;
 }
 
@@ -2186,6 +2199,15 @@ var _numberOffset = 0;
 var numberGroup  = null;
 var _lastTransforms = null; // saved so highlightNumberFaces can update without full rebuild
 var _composeLabels = null;  // custom per-segment labels in compose mode; null = use offset
+var _composeLBlock = null;  // boolean array: true for segments belonging to l-block
+var _composeLColor = -1;    // current l-block color hex
+function _pickComposeLColor() {
+  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor && c !== _composeLColor; });
+  if (!choices.length) choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
+  _composeLColor = choices[Math.floor(Math.random() * choices.length)];
+  MAT_L.color.setHex(_composeLColor);
+  _INNER_MAT_L.color.setHex(_composeLColor);
+}
 
 // Texture cache: label (integer) → CanvasTexture (white text on transparent bg).
 // Reused across figure loads; never disposed (small and bounded by max segment count).
@@ -2374,7 +2396,8 @@ function buildSnake(digits, fitCam) {
   snakeGroup = new THREE.Group();
   for (var i = 0; i < transforms.length; i++) {
     var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
-    var mesh = new THREE.Mesh(BASE_GEO.clone(), isHitSeg ? MAT_HIT : (i % 2 === 0 ? MAT_A : MAT_B));
+    var matColored = (_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A;
+    var mesh = new THREE.Mesh(BASE_GEO.clone(), isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : MAT_B));
     mesh.matrixAutoUpdate = false;
     mesh.matrix.copy(transforms[i]);
     mesh.matrixWorldNeedsUpdate = true;
@@ -2402,14 +2425,16 @@ function buildSnake(digits, fitCam) {
 
   // Seam lines between coplanar adjacent rectangular faces (thick quads, opposite color)
   var hw = 0.03; // half-width of seam quad
-  var seamData = buildSeamLines(transforms);
-  if (seamData.posA.length > 0)  // even (colored) segs → white opposite
+  var seamData = buildSeamLines(transforms, _composeLBlock);
+  if (seamData.posA.length > 0)  // even segs → white seam
     snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posA, seamData.normA, hw), _INNER_MAT_B));
-  if (seamData.posB.length > 0)  // odd (white) segs → colored opposite
+  if (seamData.posB.length > 0)  // odd s-block segs → s-color seam
     snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posB, seamData.normB, hw), _INNER_MAT_A));
+  if (seamData.posL.length > 0)  // odd l-block segs → l-color seam
+    snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posL, seamData.normL, hw), _INNER_MAT_L));
 
   // Inner rect decorations on rectangular faces
-  snakeGroup.add(buildInnerRects(transforms));
+  snakeGroup.add(buildInnerRects(transforms, _composeLBlock));
 
   // End markers on open figures
   if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
@@ -2447,7 +2472,9 @@ function _undoPush() {
       l: _composeL,
       s: _composeS,
       sName: document.getElementById('compose-s-name').textContent,
-      labels: _composeLabels ? _composeLabels.slice() : null
+      labels: _composeLabels ? _composeLabels.slice() : null,
+      lBlock: _composeLBlock ? _composeLBlock.slice() : null,
+      lColor: _composeLColor
     };
   }
   _undoStack.push(entry);
@@ -2465,6 +2492,9 @@ function undoCode() {
     _composeL = cs.l;
     _composeS = cs.s;
     _composeLabels = cs.labels;
+    _composeLBlock = cs.lBlock || null;
+    _composeLColor = (cs.lColor !== undefined) ? cs.lColor : -1;
+    if (_composeLColor >= 0) { MAT_L.color.setHex(_composeLColor); _INNER_MAT_L.color.setHex(_composeLColor); }
     lengthInput.value = state.value.length + 1;
     if (_composeL) {
       // restore full compose UI
@@ -2473,7 +2503,7 @@ function undoCode() {
       document.getElementById('compose-l-name').textContent = _composeL.name;
       var m = _composeS.digits.length + 1;
       document.getElementById('compose-a-input').value = _composeA + 1;
-      document.getElementById('compose-a-max').textContent = '1–' + (_composeS.closed ? m - 1 : m);
+      document.getElementById('compose-a-max').textContent = '1–' + m;
       document.getElementById('compose-s-name').textContent = cs.sName;
       document.getElementById('compose-s-name').style.display = 'block';
       document.getElementById('compose-a-row').style.display = 'flex';
@@ -3562,11 +3592,25 @@ function _composeComputeLabels(sDigits, sClosed, lFull, a, b) {
   return labels;
 }
 
+function _composeComputeLBlock(sDigits, sClosed, lFull, a, b) {
+  var m = sDigits.length + 1;
+  var n = lFull.length;
+  var lb = new Array(m + n).fill(false);
+  if (sClosed) {
+    for (var k = 0; k < n; k++) lb[k] = true;
+  } else {
+    for (var k = 0; k < n; k++) lb[a + 1 + k] = true;
+  }
+  return lb;
+}
+
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
   var res = _joinLoops(_composeS.digits, _composeS.closed,
                        _composeL.full, _composeA, _composeB);
   _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
+                                         _composeL.full, _composeA, _composeB);
+  _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
                                          _composeL.full, _composeA, _composeB);
   var code = res.join('');
   codeInput.value = code;
@@ -3578,7 +3622,7 @@ function _composeUpdate() {
 
 function _composeSetA(val) {
   // closed: a in 0..m-2 (m-1 choices); open: a in 0..m-1 (m choices); val is 1-based
-  var sLen = _composeS ? (_composeS.closed ? _composeS.digits.length : _composeS.digits.length + 1) : 1;
+  var sLen = _composeS ? _composeS.digits.length + 1 : 1;
   var newA = (((val - 1) % sLen) + sLen) % sLen;
   if (newA === _composeA) return;  // no change, no push
   _undoPush();
@@ -3600,6 +3644,7 @@ function _composeSetB(val) {
 function _composeClearL() {
   _composeL = null;
   _composeLabels = null;
+  _composeLBlock = null;
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'none';
@@ -3626,11 +3671,12 @@ function _composeSelectL(fig) {
   // Update a range for the (possibly new) s
   var m = sDigits.length + 1;
   document.getElementById('compose-a-input').value = 1;
-  document.getElementById('compose-a-max').textContent = '1–' + (sClosed ? m - 1 : m);
+  document.getElementById('compose-a-max').textContent = '1–' + (m);
   // Update base snake name (may have changed if chaining)
   document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
   document.getElementById('compose-s-name').style.display = 'block';
 
+  _pickComposeLColor();
   _composeL = { name: fig.name, code: fig.code, full: full };
   _composeB = 0;
   document.getElementById('compose-l-name').textContent = fig.name;
@@ -3641,6 +3687,7 @@ function _composeSelectL(fig) {
   document.getElementById('compose-b-max').textContent = '1–' + n;
   document.getElementById('compose-a-row').style.display = 'flex';
   document.getElementById('compose-b-row').style.display = 'flex';
+
   _composeUpdate();
 }
 
@@ -3654,7 +3701,7 @@ function _enterComposeMode() {
   _composeL = null;
 
   var m = r.digits.length + 1;
-  var sMaxDisplay = closed ? m - 1 : m;
+  var sMaxDisplay = m;
 
   document.getElementById('compose-panel').style.display = 'block';
   document.getElementById('compose-l-prompt').style.display = '';
@@ -3689,6 +3736,8 @@ function _exitComposeMode() {
   _composeS = null;
   _composeL = null;
   _composeLabels = null;
+  _composeLBlock = null;
+  _composeLColor = -1;
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   if (showNumbers) {
@@ -3704,6 +3753,9 @@ function _exitComposeMode() {
   btnC.style.background = '';
   btnC.style.borderColor = '';
   btnC.style.color = '';
+  // Rebuild snake with normal coloring (no l-block highlight)
+  var r = parseCode(codeInput.value);
+  if (!r.err) buildSnake(r.digits, false);
 }
 
 document.getElementById('btn-compose').addEventListener('click', function() {
