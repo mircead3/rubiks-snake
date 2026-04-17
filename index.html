@@ -98,6 +98,7 @@ span.cursor-mark {
   display:flex; align-items:center; gap:8px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
 }
+.row-spacer { flex:0 0 28px; }
 
 
 #left-panel {
@@ -181,11 +182,13 @@ span.cursor-mark {
 #compose-panel { width:100%; }
 #compose-s-info { font-size:11px; color:rgba(255,180,80,0.9); margin-bottom:4px; padding-left:2px; }
 #compose-l-row { margin-bottom:4px; padding-left:2px; }
-#compose-l-info { font-size:11px; color:rgba(255,180,80,0.9); display:flex; align-items:center; gap:6px; }
+#compose-l-info { font-size:11px; color:rgba(255,180,80,0.9); display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:2px; }
 #compose-l-clear { background:none; border:none; color:rgba(255,120,80,0.7); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; }
 #compose-l-clear:hover { color:#ff8866; }
 #compose-a-row, #compose-b-row { padding-left:2px; }
-#compose-b-row { margin-top:2px; }
+#compose-s-name { font-size:11px; color:rgba(255,180,80,0.9); padding-left:2px; margin-top:8px; }
+#compose-a-row { margin-top:4px; }
+#compose-b-row { margin-top:10px; }
 .compose-input-row { display:flex; align-items:center; gap:5px; margin:4px 0; }
 .compose-lbl { font-size:11px; color:rgba(255,180,80,0.7); width:12px; }
 .compose-step { background:rgba(60,40,10,0.8); border:1px solid rgba(200,150,50,0.35); color:#cc9944; border-radius:4px; cursor:pointer; font-size:10px; padding:1px 5px; line-height:1.4; }
@@ -251,16 +254,18 @@ span.cursor-mark {
       <div id="code-overlay" aria-hidden="true"></div>
     </div>
     <span id="closing-digit"></span>
-    <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">chiral</button>
-    <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
-    <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
+    <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">C</button>
   </div>
   <div id="view-row">
-    <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">⊕</button>
-    <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
-    <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
+    <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
+    <span class="row-spacer"></span>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
+    <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
+    <span class="row-spacer"></span>
+    <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
+    <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
+    <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
   </div>
   <div id="error-msg"></div>
 </div>
@@ -269,22 +274,21 @@ span.cursor-mark {
 <div id="right-panel">
   <div id="compose-panel" style="display:none">
     <div class="panel-label" style="color:rgba(255,170,60,0.8)">Compose mode</div>
+    <div id="compose-l-row">
+      <div id="compose-l-prompt" class="panel-label">Select a closed snake</div>
+    </div>
+    <div id="compose-s-name" style="display:none"></div>
     <div id="compose-a-row" style="display:none" class="compose-input-row">
-      <span class="compose-lbl">a</span>
       <button class="compose-step" id="compose-a-dec">◀</button>
       <input class="compose-num" id="compose-a-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-a-inc">▶</button>
       <span class="compose-max" id="compose-a-max"></span>
     </div>
-    <div id="compose-l-row">
-      <div id="compose-l-prompt" class="panel-label">Select a closed snake</div>
-      <div id="compose-l-info" style="display:none">
-        <span id="compose-l-name"></span>
-        <button id="compose-l-clear" title="Clear loop selection">✕</button>
-      </div>
+    <div id="compose-l-info" style="display:none">
+      <span id="compose-l-name"></span>
+      <button id="compose-l-clear" title="Clear loop selection">✕</button>
     </div>
     <div id="compose-b-row" style="display:none" class="compose-input-row">
-      <span class="compose-lbl">b</span>
       <button class="compose-step" id="compose-b-dec">◀</button>
       <input class="compose-num" id="compose-b-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-b-inc">▶</button>
@@ -330,22 +334,24 @@ span.cursor-mark {
       <tr><td>Two-finger swipe</td><td>Pan (touch)</td></tr>
     </table>
 
-    <h3>Editing</h3>
+    <h3>Top row</h3>
     <table>
       <tr><td>Name</td><td>Figure name — populated when a figure is loaded; edit before saving</td></tr>
-      <tr><td>Seg</td><td>Number of segments (2–200)</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
-      <tr><td>↩</td><td>Undo the last digit edit; press repeatedly to undo all changes back to the loaded figure. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
-      <tr><td>Cursor mark</td><td>When you leave the code box (to rotate the snake), your cursor position is saved and shown as a gold bar. Clicking the code box returns the cursor there.</td></tr>
-      <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
+      <tr><td>Extra digit</td><td>Closing digit of a closed loop — shown automatically when the snake closes</td></tr>
+      <tr><td>C</td><td>Appears when the figure's code is not equivalent to its mirror image (swap 1↔3 in joints). Click to toggle the mirror view. A superscript <strong>*</strong> means the 3D shape is geometrically chiral — it cannot be rotated to match its mirror image.</td></tr>
     </table>
 
-    <h3>View</h3>
+    <h3>Bottom row</h3>
     <table>
-      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows snake only up to the cursor position; digits to the right are treated as 0. Move the cursor to fold or unfold the snake step by step. Clicking the code box also enters edit mode. Auto-rotation stops on entry.</td></tr>
-      <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection (without turning the button on).</td></tr>
+      <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
-      <tr><td>chiral</td><td>Appears when the figure's code sequence is not equivalent to its mirror image (swap 1↔3 in joints). Click to toggle the mirror view. A superscript <strong>*</strong> means the 3D shape itself is geometrically chiral — the solid cannot be rotated to match its mirror image.</td></tr>
+      <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
+      <tr><td>?</td><td>This help page</td></tr>
+      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry. Entering compose mode exits edit mode.</td></tr>
+      <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Set attachment point <strong>a</strong> on the base snake, then click any closed figure in a collection to select it as the loop and set <strong>b</strong>. The result is shown live. Each loop selection is undoable. Segment numbers show original numbering from each source snake.</td></tr>
+      <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
+      <tr><td>Cursor mark</td><td>When you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -2180,6 +2186,7 @@ var collisionNumbers = false;
 var _numberOffset = 0;
 var numberGroup  = null;
 var _lastTransforms = null; // saved so highlightNumberFaces can update without full rebuild
+var _composeLabels = null;  // custom per-segment labels in compose mode; null = use offset
 
 // Texture cache: label (integer) → CanvasTexture (white text on transparent bg).
 // Reused across figure loads; never disposed (small and bounded by max segment count).
@@ -2238,7 +2245,7 @@ function buildNumberFaces(transforms) {
   var N = transforms.length;
   var g = new THREE.Group();
   for (var i = 0; i < N; i++) {
-    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
+    var label = _composeLabels ? _composeLabels[i] : (showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1);
     var nd = String(label).length;
     var tex = getNumTexture(label);
     for (var f = 0; f < _NUM_FACE_DEFS.length; f++) {
@@ -2276,7 +2283,7 @@ function highlightNumberFaces(hitIndices) {
     var i = child.userData.segIdx;
     if (i === undefined) continue;
     var isHit = hitIndices && hitIndices.indexOf(i) !== -1;
-    var label = showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1;
+    var label = _composeLabels ? _composeLabels[i] : (showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1);
     var isRect = child.userData.faceIsRect;
     var col;
     if (isHit) col = 0xff6600;
@@ -2434,7 +2441,17 @@ var errorDiv    = document.getElementById('error-msg');
 
 var _undoStack = [];
 function _undoPush() {
-  _undoStack.push({ value: codeInput.value, selStart: codeInput.selectionStart });
+  var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
+  if (_composeMode) {
+    entry.composeState = {
+      a: _composeA, b: _composeB,
+      l: _composeL,
+      s: _composeS,
+      sName: document.getElementById('compose-s-name').textContent,
+      labels: _composeLabels ? _composeLabels.slice() : null
+    };
+  }
+  _undoStack.push(entry);
   document.getElementById('btn-undo').disabled = false;
 }
 function undoCode() {
@@ -2442,11 +2459,53 @@ function undoCode() {
   var state = _undoStack.pop();
   document.getElementById('btn-undo').disabled = (_undoStack.length === 0);
   codeInput.value = state.value;
-  codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
-  _savedCursorPos = state.selStart;  // keep golden mark in sync with restored cursor
-  applyCode();
-  codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
-  if (rollMode) applyDisplay();
+  if (_composeMode && state.composeState) {
+    var cs = state.composeState;
+    _composeA = cs.a;
+    _composeB = cs.b;
+    _composeL = cs.l;
+    _composeS = cs.s;
+    _composeLabels = cs.labels;
+    lengthInput.value = state.value.length + 1;
+    if (_composeL) {
+      // restore full compose UI
+      document.getElementById('compose-l-prompt').style.display = 'none';
+      document.getElementById('compose-l-info').style.display = 'flex';
+      document.getElementById('compose-l-name').textContent = _composeL.name;
+      var m = _composeS.digits.length + 1;
+      document.getElementById('compose-a-input').value = _composeA + 1;
+      document.getElementById('compose-a-max').textContent = '1–' + (_composeS.closed ? m - 1 : m);
+      document.getElementById('compose-s-name').textContent = cs.sName;
+      document.getElementById('compose-s-name').style.display = 'block';
+      document.getElementById('compose-a-row').style.display = 'flex';
+      var n = _composeL.full.length;
+      document.getElementById('compose-b-input').value = _composeB + 1;
+      document.getElementById('compose-b-max').textContent = '1–' + n;
+      document.getElementById('compose-b-row').style.display = 'flex';
+      codeInput.value = state.value;
+      autoResizeCode();
+      clearError();
+      buildSnake(state.value.split('').map(Number), false);
+    } else {
+      // no loop was selected — show prompt, display base snake
+      document.getElementById('compose-l-prompt').style.display = '';
+      document.getElementById('compose-l-info').style.display = 'none';
+      document.getElementById('compose-s-name').style.display = 'none';
+      document.getElementById('compose-a-row').style.display = 'none';
+      document.getElementById('compose-b-row').style.display = 'none';
+      codeInput.value = state.value;
+      lengthInput.value = _composeS.digits.length + 1;
+      autoResizeCode();
+      clearError();
+      buildSnake(_composeS.digits, false);
+    }
+  } else {
+    codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
+    _savedCursorPos = state.selStart;
+    applyCode();
+    codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
+    if (rollMode) applyDisplay();
+  }
 }
 codeInput.addEventListener('beforeinput', function(e) {
   if (e.data && /[^0-3]/.test(e.data)) { e.preventDefault(); return; }
@@ -2844,9 +2903,12 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
 document.getElementById('toggle-numbers').style.opacity = '0.5';
 
 function _setEditMode(on) {
+  if (on && _composeMode) _exitComposeMode();
   rollMode = on;
   codeInput.readOnly = !on;
   document.getElementById('toggle-fold').style.opacity = on ? '1' : '0.5';
+  _undoStack = [];
+  document.getElementById('btn-undo').disabled = true;
   if (on && autoRotate) {
     autoRotate = false;
     document.getElementById('toggle-autorotate').style.opacity = '0.5';
@@ -3438,7 +3500,12 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
   var n = lFull.length;
   var j = sDigits;
   var k = lFull;
-  function sj(i) { var nj = j.length; return j[((i % nj) + nj) % nj]; }
+  // For closed s, include the closing digit so sj cycles with period m (not m-1).
+  // Without this, joints past j[m-2] wrap to j[0] instead of the closing digit,
+  // misassigning every joint from that point onward.
+  var sJoints = sClosed ? j.concat([closingDigit(j)]) : j;
+  var sM = sJoints.length;
+  function sj(i) { return sJoints[((i % sM) + sM) % sM]; }
   function lj(i) { return k[((i % n) + n) % n]; }
   var res = [];
   if (sClosed) {
@@ -3462,10 +3529,34 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
   return res;
 }
 
+function _composeComputeLabels(sDigits, sClosed, lFull, a, b) {
+  var m = sDigits.length + 1;  // segments in s
+  var n = lFull.length;         // segments in l (full, including closing digit = n segments)
+  var labels = [];
+  if (sClosed) {
+    // l-block: n segs l[(b-1+k) mod n], k=0..n-1
+    for (var k = 0; k < n; k++) labels.push((b - 1 + k + n) % n + 1);
+    // s-block: m segs s[(a+j) mod m], j=0..m-1
+    for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);
+  } else {
+    // s prefix: s[0..a-1]
+    for (var i = 0; i < a; i++) labels.push(i + 1);
+    // s[a] (rotated)
+    labels.push(a + 1);
+    // l-block: n segs l[(b+k) mod n], k=0..n-1
+    for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
+    // s suffix: s[a+1..m-1]
+    for (var i = a + 1; i < m; i++) labels.push(i + 1);
+  }
+  return labels;
+}
+
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
   var res = _joinLoops(_composeS.digits, _composeS.closed,
                        _composeL.full, _composeA, _composeB);
+  _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
+                                         _composeL.full, _composeA, _composeB);
   var code = res.join('');
   codeInput.value = code;
   lengthInput.value = res.length + 1;
@@ -3477,24 +3568,34 @@ function _composeUpdate() {
 function _composeSetA(val) {
   // closed: a in 0..m-2 (m-1 choices); open: a in 0..m-1 (m choices); val is 1-based
   var sLen = _composeS ? (_composeS.closed ? _composeS.digits.length : _composeS.digits.length + 1) : 1;
-  _composeA = ((( val - 1) % sLen) + sLen) % sLen;  // convert 1-based input to 0-based internal
+  var newA = (((val - 1) % sLen) + sLen) % sLen;
+  if (newA === _composeA) return;  // no change, no push
+  _undoPush();
+  _composeA = newA;
   document.getElementById('compose-a-input').value = _composeA + 1;
   _composeUpdate();
 }
 
 function _composeSetB(val) {
   var n = _composeL ? _composeL.full.length : 1;
-  _composeB = (((val - 1) % n) + n) % n;  // convert 1-based input to 0-based internal
+  var newB = (((val - 1) % n) + n) % n;
+  if (newB === _composeB) return;  // no change, no push
+  _undoPush();
+  _composeB = newB;
   document.getElementById('compose-b-input').value = _composeB + 1;
   _composeUpdate();
 }
 
 function _composeClearL() {
   _composeL = null;
+  _composeLabels = null;
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
+  document.getElementById('compose-s-name').style.display = 'none';
+  document.getElementById('compose-a-row').style.display = 'none';
   document.getElementById('compose-b-row').style.display = 'none';
   // restore s display
+  clearError();
   if (_composeS) buildSnake(_composeS.digits, false);
 }
 
@@ -3515,7 +3616,9 @@ function _composeSelectL(fig) {
   var m = sDigits.length + 1;
   document.getElementById('compose-a-input').value = 1;
   document.getElementById('compose-a-max').textContent = '1–' + (sClosed ? m - 1 : m);
-  document.getElementById('compose-a-row').style.display = 'flex';
+  // Update base snake name (may have changed if chaining)
+  document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
+  document.getElementById('compose-s-name').style.display = 'block';
 
   _composeL = { name: fig.name, code: fig.code, full: full };
   _composeB = 0;
@@ -3525,11 +3628,13 @@ function _composeSelectL(fig) {
   var n = full.length;
   document.getElementById('compose-b-input').value = 1;
   document.getElementById('compose-b-max').textContent = '1–' + n;
+  document.getElementById('compose-a-row').style.display = 'flex';
   document.getElementById('compose-b-row').style.display = 'flex';
   _composeUpdate();
 }
 
 function _enterComposeMode() {
+  if (rollMode) _setEditMode(false);
   var r = parseCode(codeInput.value);
   if (r.err) return;
   var closed = isClosed(r.digits);
@@ -3543,16 +3648,22 @@ function _enterComposeMode() {
   document.getElementById('compose-panel').style.display = 'block';
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
-  document.getElementById('compose-b-row').style.display = 'none';
   document.getElementById('compose-a-input').value = 1;
   document.getElementById('compose-a-max').textContent = '1–' + sMaxDisplay;
-  document.getElementById('compose-a-row').style.display = 'flex';
+  document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
+  document.getElementById('compose-s-name').style.display = 'none';
+  document.getElementById('compose-a-row').style.display = 'none';
+  document.getElementById('compose-b-row').style.display = 'none';
 
   if (!showNumbers) {
     showNumbers = true;
     document.getElementById('toggle-numbers').style.opacity = '1';
     if (numberGroup) { numberGroup.visible = true; highlightNumberFaces(_hitSegments); }
   }
+
+  // Fresh undo stack for compose mode
+  _undoStack = [];
+  document.getElementById('btn-undo').disabled = true;
 
   var btnC = document.getElementById('btn-compose');
   btnC.style.background = 'rgba(180,100,20,0.5)';
@@ -3565,6 +3676,14 @@ function _exitComposeMode() {
   _composeMode = false;
   _composeS = null;
   _composeL = null;
+  _composeLabels = null;
+  _undoStack = [];
+  document.getElementById('btn-undo').disabled = true;
+  if (showNumbers) {
+    showNumbers = false;
+    document.getElementById('toggle-numbers').style.opacity = '0.5';
+    if (numberGroup) numberGroup.visible = false;
+  }
   document.getElementById('compose-panel').style.display = 'none';
   document.getElementById('compose-a-row').style.display = 'none';
   document.getElementById('compose-b-row').style.display = 'none';
