@@ -3447,7 +3447,7 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
     for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
     res.push((lj(b - 2) + 2) % 4);
     res.push((sj(a) + 2) % 4);
-    for (var i = 0; i < j.length - 2; i++) res.push(sj(a + 1 + i));
+    for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));
   } else {
     for (var i = 0; i < a - 1; i++) res.push(j[i]);
     if (a > 0) res.push((j[a - 1] + 2) % 4);
@@ -3464,7 +3464,6 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
 
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
-  _undoPush();
   var res = _joinLoops(_composeS.digits, _composeS.closed,
                        _composeL.full, _composeA, _composeB);
   var code = res.join('');
@@ -3504,6 +3503,20 @@ function _composeSelectL(fig) {
   if (!isClosed(digits)) return;  // ignore non-closed figures in compose mode
   var cd = closingDigit(digits);
   var full = digits.concat([cd]);
+
+  // Push undo state before applying; chain off current displayed result
+  _undoPush();
+  var sDigits = codeInput.value.split('').map(Number);
+  var sClosed = isClosed(sDigits);
+  _composeS = { digits: sDigits, closed: sClosed };
+  _composeA = 0;
+
+  // Update a range for the (possibly new) s
+  var m = sDigits.length + 1;
+  document.getElementById('compose-a-input').value = 1;
+  document.getElementById('compose-a-max').textContent = '1–' + (sClosed ? m - 1 : m);
+  document.getElementById('compose-a-row').style.display = 'flex';
+
   _composeL = { name: fig.name, code: fig.code, full: full };
   _composeB = 0;
   document.getElementById('compose-l-name').textContent = fig.name;
