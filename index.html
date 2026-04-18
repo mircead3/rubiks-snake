@@ -197,6 +197,8 @@ span.cursor-mark {
 .compose-num::-webkit-outer-spin-button, .compose-num::-webkit-inner-spin-button { -webkit-appearance:none; }
 .compose-num:focus { border-color:rgba(255,180,60,0.6); }
 .compose-max { font-size:10px; color:rgba(180,140,60,0.5); }
+#compose-flip-btn { margin-left:4px; }
+#compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
 
 #error-msg {
   color:#ff8080; font-size:11px; min-height:16px; pointer-events:none;
@@ -292,6 +294,7 @@ span.cursor-mark {
       <input class="compose-num" id="compose-b-input" type="number" min="1" value="1">
       <button class="compose-step" id="compose-b-inc">▶</button>
       <span class="compose-max" id="compose-b-max"></span>
+      <button class="compose-step" id="compose-flip-btn" title="Flip: rotate snake b 180° around the face normal of sb">↔</button>
     </div>
     <div class="panel-divider"></div>
   </div>
@@ -2475,7 +2478,7 @@ function _undoPush() {
   var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
   if (_composeMode) {
     entry.composeState = {
-      a: _composeA, b: _composeB,
+      a: _composeA, b: _composeB, flip: _composeFlip,
       l: _composeL,
       s: _composeS,
       sName: document.getElementById('compose-s-name').textContent,
@@ -2496,6 +2499,8 @@ function undoCode() {
     var cs = state.composeState;
     _composeA = cs.a;
     _composeB = cs.b;
+    _composeFlip = cs.flip || false;
+    _updateFlipButton();
     _composeL = cs.l;
     _composeS = cs.s;
     _composeLabels = cs.labels;
@@ -3536,6 +3541,7 @@ var _composeS    = null;  // { digits, closed }
 var _composeL    = null;  // { name, code, full } — the chosen closed loop
 var _composeA    = 0;
 var _composeB    = 0;
+var _composeFlip = false;
 
 // Join formula (verified against multiple examples).
 // sDigits: stored digits (length m-1 for closed, m-1 for open if m segs)
@@ -3544,7 +3550,7 @@ var _composeB    = 0;
 // a: attachment segment index on s (0..m-1)
 // b: attachment segment index on l (0..n-1)
 // Returns new stored digit array.
-function _joinLoops(sDigits, sClosed, lFull, a, b) {
+function _joinLoops(sDigits, sClosed, lFull, a, b, flip) {
   var n = lFull.length;
   var j = sDigits;
   var k = lFull;
@@ -3558,12 +3564,18 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
   var res = [];
   if (sClosed) {
     // d0-starting representation: always produces m+n-1 items
+    // L-block is always forward; flip reverses the s-block traversal direction.
     res.push((lj(b - 1) + 2) % 4);
     for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
     res.push((lj(b - 2) + 2) % 4);
     res.push((sj(a) + 2) % 4);
-    for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));
+    if (flip) {
+      for (var i = 0; i < j.length - 1; i++) res.push(sj(a - 1 - i));  // reversed
+    } else {
+      for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));  // forward
+    }
   } else {
+    // Open s: flip reverses the right (post-join) portion of s.
     for (var i = 0; i < a - 1; i++) res.push(j[i]);
     if (a > 0) res.push((j[a - 1] + 2) % 4);
     res.push((lj(b - 1) + 2) % 4);
@@ -3571,30 +3583,42 @@ function _joinLoops(sDigits, sClosed, lFull, a, b) {
     res.push((lj(b - 2) + 2) % 4);
     if (a < j.length) {
       res.push((j[a] + 2) % 4);
-      for (var i = 0; i < j.length - 1 - a; i++) res.push(j[a + 1 + i]);
+      if (flip) {
+        for (var i = 0; i < j.length - 1 - a; i++) res.push(j[j.length - 1 - i]);  // reversed
+      } else {
+        for (var i = 0; i < j.length - 1 - a; i++) res.push(j[a + 1 + i]);  // forward
+      }
     }
   }
   return res;
 }
 
-function _composeComputeLabels(sDigits, sClosed, lFull, a, b) {
+function _composeComputeLabels(sDigits, sClosed, lFull, a, b, flip) {
   var m = sDigits.length + 1;  // segments in s
   var n = lFull.length;         // segments in l (full, including closing digit = n segments)
   var labels = [];
   if (sClosed) {
-    // l-block: n segs l[(b+k) mod n], k=0..n-1
+    // l-block: n segs l[(b+k) mod n], k=0..n-1 (same whether flipped or not)
     for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
-    // s-block: m segs s[(a+j) mod m], j=0..m-1
-    for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);
+    // s-block: forward or reversed from a
+    if (flip) {
+      for (var j = 0; j < m; j++) labels.push((a - j + m) % m + 1);  // reversed
+    } else {
+      for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);       // forward
+    }
   } else {
-    // s prefix: s[0..a-1]
+    // s prefix: s[0..a-1] (same)
     for (var i = 0; i < a; i++) labels.push(i + 1);
-    // s[a] (rotated)
+    // s[a] (same)
     labels.push(a + 1);
-    // l-block: n segs l[(b+k) mod n], k=0..n-1
+    // l-block: n segs l[(b+k) mod n], k=0..n-1 (same)
     for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
-    // s suffix: s[a+1..m-1]
-    for (var i = a + 1; i < m; i++) labels.push(i + 1);
+    // s suffix: forward or reversed
+    if (flip) {
+      for (var i = 0; i < m - a - 1; i++) labels.push(m - i);  // m, m-1, ..., a+2
+    } else {
+      for (var i = a + 1; i < m; i++) labels.push(i + 1);       // a+2, ..., m
+    }
   }
   return labels;
 }
@@ -3614,9 +3638,9 @@ function _composeComputeLBlock(sDigits, sClosed, lFull, a, b) {
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
   var res = _joinLoops(_composeS.digits, _composeS.closed,
-                       _composeL.full, _composeA, _composeB);
+                       _composeL.full, _composeA, _composeB, _composeFlip);
   _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
-                                         _composeL.full, _composeA, _composeB);
+                                         _composeL.full, _composeA, _composeB, _composeFlip);
   _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
                                          _composeL.full, _composeA, _composeB);
   var code = res.join('');
@@ -3648,10 +3672,26 @@ function _composeSetB(val) {
   _composeUpdate();
 }
 
+function _updateFlipButton() {
+  var btn = document.getElementById('compose-flip-btn');
+  if (_composeFlip) btn.classList.add('flip-active');
+  else btn.classList.remove('flip-active');
+}
+
+function _composeSetFlip(flip) {
+  if (flip === _composeFlip) return;
+  _undoPush();
+  _composeFlip = flip;
+  _updateFlipButton();
+  _composeUpdate();
+}
+
 function _composeClearL() {
   _composeL = null;
   _composeLabels = null;
   _composeLBlock = null;
+  _composeFlip = false;
+  _updateFlipButton();
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'none';
@@ -3686,6 +3726,8 @@ function _composeSelectL(fig) {
   _pickComposeLColor();
   _composeL = { name: fig.name, code: fig.code, full: full };
   _composeB = 0;
+  _composeFlip = false;
+  _updateFlipButton();
   document.getElementById('compose-l-name').textContent = fig.name;
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-l-info').style.display = 'flex';
@@ -3706,6 +3748,8 @@ function _enterComposeMode() {
   _composeS = { digits: r.digits, closed: closed };
   _composeA = 0;
   _composeL = null;
+  _composeFlip = false;
+  _updateFlipButton();
 
   var m = r.digits.length + 1;
   var sMaxDisplay = m;
@@ -3745,6 +3789,8 @@ function _exitComposeMode() {
   _composeLabels = null;
   _composeLBlock = null;
   _composeLColor = -1;
+  _composeFlip = false;
+  _updateFlipButton();
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   if (showNumbers) {
@@ -3777,6 +3823,7 @@ document.getElementById('compose-a-dec').addEventListener('click', function() { 
 document.getElementById('compose-a-inc').addEventListener('click', function() { _composeSetA(_composeA + 2); }); // increment → _composeA+1+1 = _composeA+2
 document.getElementById('compose-b-dec').addEventListener('click', function() { _composeSetB(_composeB); });
 document.getElementById('compose-b-inc').addEventListener('click', function() { _composeSetB(_composeB + 2); });
+document.getElementById('compose-flip-btn').addEventListener('click', function() { _composeSetFlip(!_composeFlip); });
 
 document.getElementById('compose-a-input').addEventListener('change', function() {
   _composeSetA(parseInt(this.value, 10) || 1);
