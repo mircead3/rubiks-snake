@@ -351,7 +351,8 @@ span.cursor-mark {
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry. Entering compose mode exits edit mode.</td></tr>
-      <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Set attachment point <strong>a</strong> on the base snake, then click any closed figure in a collection to select it as the loop and set <strong>b</strong>. The result is shown live. Each loop selection is undoable. Segment numbers show original numbering from each source snake.</td></tr>
+      <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop (snake b) onto the current figure (snake a). Set attachment segment <strong>a</strong> on the base snake, then click any closed figure to select it as the loop and set <strong>b</strong>. The result is shown live; the loop's segments are shown in a distinct color. Each selector change is individually undoable.<br><br>
+        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b is rotated 180° around the axis normal to segment b before joining. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>Cursor mark</td><td>When you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
     </table>
