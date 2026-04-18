@@ -3582,8 +3582,8 @@ function _composeComputeLabels(sDigits, sClosed, lFull, a, b) {
   var n = lFull.length;         // segments in l (full, including closing digit = n segments)
   var labels = [];
   if (sClosed) {
-    // l-block: n segs l[(b-1+k) mod n], k=0..n-1
-    for (var k = 0; k < n; k++) labels.push((b - 1 + k + n) % n + 1);
+    // l-block: n segs l[(b+k) mod n], k=0..n-1
+    for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
     // s-block: m segs s[(a+j) mod m], j=0..m-1
     for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);
   } else {
