@@ -2627,7 +2627,7 @@ function updateCodeDisplay() {
 }
 
 function autoResizeCode() {
-  var chars = Math.min(getLength() - 1, 48);
+  var chars = Math.min(getLength() - 1, 36);
   codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 23px)';
   codeInput.style.height = 'auto';
   codeInput.style.height = codeInput.scrollHeight + 'px';
