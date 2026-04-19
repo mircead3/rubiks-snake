@@ -299,7 +299,7 @@ span.cursor-mark {
       <button class="compose-step" id="compose-b-inc">▶</button>
       <span class="compose-max" id="compose-b-max"></span>
       <button class="compose-step" id="compose-flip-btn" title="Flip: rotate snake b 180° around the face normal of sb">↔</button>
-      <button class="compose-step" id="compose-s13-btn" title="Mirror: apply swap 1↔3 to snake b (only for chiral loops)" disabled>C</button>
+      <button class="compose-step" id="compose-s13-btn" disabled>C</button>
     </div>
     <div class="panel-divider"></div>
   </div>
@@ -2482,6 +2482,12 @@ var lengthInput = document.getElementById('length-input');
 var errorDiv    = document.getElementById('error-msg');
 
 var _undoStack = [];
+function _updateUndoButton() {
+  var btn = document.getElementById('btn-undo');
+  var n = _undoStack.length;
+  btn.disabled = (n === 0);
+  btn.textContent = n > 0 ? '\u21a9 ' + n : '\u21a9';
+}
 function _undoPush() {
   var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
   if (_composeMode) {
@@ -2496,12 +2502,12 @@ function _undoPush() {
     };
   }
   _undoStack.push(entry);
-  document.getElementById('btn-undo').disabled = false;
+  _updateUndoButton();
 }
 function undoCode() {
   if (_undoStack.length === 0) return;
   var state = _undoStack.pop();
-  document.getElementById('btn-undo').disabled = (_undoStack.length === 0);
+  _updateUndoButton();
   codeInput.value = state.value;
   if (_composeMode && state.composeState) {
     var cs = state.composeState;
@@ -2802,7 +2808,7 @@ function loadFigure(name, code) {
     b.classList.toggle('active', b.dataset.name === name);
   });
   _undoStack = [];
-  document.getElementById('btn-undo').disabled = true;
+  _updateUndoButton();
   _savedCursorPos = null;
   _numberOffset = 0;
   if (showNumbers) {
@@ -2970,7 +2976,7 @@ function _setEditMode(on) {
     btnE.style.color = '';
   }
   _undoStack = [];
-  document.getElementById('btn-undo').disabled = true;
+  _updateUndoButton();
   if (on && autoRotate) {
     autoRotate = false;
     document.getElementById('toggle-autorotate').style.opacity = '0.5';
@@ -3678,6 +3684,7 @@ function _updateS13Button() {
   var btn = document.getElementById('compose-s13-btn');
   var chiral = _composeL && isChiral(_composeL.full.slice(0, -1), _composeL.full[_composeL.full.length - 1]);
   btn.disabled = !chiral;
+  btn.title = chiral ? 'Mirror: apply swap 1\u21943 to snake b (only for chiral loops)' : '';
   if (_composeSwap13) btn.classList.add('s13-active');
   else btn.classList.remove('s13-active');
 }
@@ -3699,6 +3706,7 @@ function _composeSetSwap13(val) {
 }
 
 function _composeClearL() {
+  _undoPush();
   _composeL = null;
   _composeLabels = null;
   _composeLBlock = null;
@@ -3712,6 +3720,11 @@ function _composeClearL() {
   document.getElementById('compose-a-row').style.display = 'none';
   document.getElementById('compose-b-row').style.display = 'none';
   // restore s display
+  if (_composeS) {
+    codeInput.value = _composeS.digits.join('');
+    lengthInput.value = _composeS.digits.length + 1;
+    autoResizeCode();
+  }
   clearError();
   if (_composeS) buildSnake(_composeS.digits, false);
 }
@@ -3790,7 +3803,7 @@ function _enterComposeMode() {
 
   // Fresh undo stack for compose mode
   _undoStack = [];
-  document.getElementById('btn-undo').disabled = true;
+  _updateUndoButton();
 
   var btnC = document.getElementById('btn-compose');
   btnC.style.opacity = '1';
@@ -3812,7 +3825,7 @@ function _exitComposeMode() {
   _updateFlipButton();
   _updateS13Button();
   _undoStack = [];
-  document.getElementById('btn-undo').disabled = true;
+  _updateUndoButton();
   if (showNumbers) {
     showNumbers = false;
     document.getElementById('toggle-numbers').style.opacity = '0.5';
