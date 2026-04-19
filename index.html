@@ -199,6 +199,9 @@ span.cursor-mark {
 .compose-max { font-size:10px; color:rgba(180,140,60,0.5); }
 #compose-flip-btn { margin-left:4px; }
 #compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
+#compose-s13-btn { margin-left:4px; }
+#compose-s13-btn.s13-active { background:rgba(20,100,180,0.5); border-color:rgba(40,160,255,0.8); color:#66ccff; }
+#compose-s13-btn:disabled { opacity:0.3; cursor:default; }
 
 #error-msg {
   color:#ff8080; font-size:11px; min-height:16px; pointer-events:none;
@@ -260,6 +263,7 @@ span.cursor-mark {
   </div>
   <div id="view-row">
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
+    <button class="btn" id="btn-copy" title="Copy code to clipboard" onclick="navigator.clipboard.writeText(document.getElementById('code-input').value)">Copy</button>
     <span class="row-spacer"></span>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
@@ -295,6 +299,7 @@ span.cursor-mark {
       <button class="compose-step" id="compose-b-inc">▶</button>
       <span class="compose-max" id="compose-b-max"></span>
       <button class="compose-step" id="compose-flip-btn" title="Flip: rotate snake b 180° around the face normal of sb">↔</button>
+      <button class="compose-step" id="compose-s13-btn" title="Mirror: apply swap 1↔3 to snake b (only for chiral loops)" disabled>C</button>
     </div>
     <div class="panel-divider"></div>
   </div>
@@ -347,12 +352,14 @@ span.cursor-mark {
     <h3>Bottom row</h3>
     <table>
       <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
+      <tr><td>Copy</td><td>Copy the current code to the clipboard.</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry. Entering compose mode exits edit mode.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop (snake b) onto the current figure (snake a). Set attachment segment <strong>a</strong> on the base snake, then click any closed figure to select it as the loop and set <strong>b</strong>. The result is shown live; the loop's segments are shown in a distinct color. Each selector change is individually undoable.<br><br>
-        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b is rotated 180° around the axis normal to segment b before joining. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.</td></tr>
+        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b is rotated 180° around the axis normal to segment b before joining. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
+        <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>Cursor mark</td><td>When you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
     </table>
@@ -2479,7 +2486,7 @@ function _undoPush() {
   var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
   if (_composeMode) {
     entry.composeState = {
-      a: _composeA, b: _composeB, flip: _composeFlip,
+      a: _composeA, b: _composeB, flip: _composeFlip, swap13: _composeSwap13,
       l: _composeL,
       s: _composeS,
       sName: document.getElementById('compose-s-name').textContent,
@@ -2501,7 +2508,9 @@ function undoCode() {
     _composeA = cs.a;
     _composeB = cs.b;
     _composeFlip = cs.flip || false;
+    _composeSwap13 = cs.swap13 || false;
     _updateFlipButton();
+    _updateS13Button();
     _composeL = cs.l;
     _composeS = cs.s;
     _composeLabels = cs.labels;
@@ -3540,9 +3549,10 @@ loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed
 var _composeMode = false;
 var _composeS    = null;  // { digits, closed }
 var _composeL    = null;  // { name, code, full } — the chosen closed loop
-var _composeA    = 0;
-var _composeB    = 0;
-var _composeFlip = false;
+var _composeA      = 0;
+var _composeB      = 0;
+var _composeFlip   = false;
+var _composeSwap13 = false;
 
 // Join formula (verified against multiple examples).
 // sDigits: stored digits (length m-1 for closed, m-1 for open if m segs)
@@ -3551,44 +3561,35 @@ var _composeFlip = false;
 // a: attachment segment index on s (0..m-1)
 // b: attachment segment index on l (0..n-1)
 // Returns new stored digit array.
-function _joinLoops(sDigits, sClosed, lFull, a, b, flip) {
+function _joinLoops(sDigits, sClosed, lFull, a, b, flip, swap13) {
   var n = lFull.length;
   var j = sDigits;
-  var k = lFull;
+  // Flip: reverse l's digit list; same b works directly on the reversed sequence.
+  // Swap13: apply 1↔3 mirror to each digit.
+  var k = flip ? lFull.slice().reverse() : lFull.slice();
+  if (swap13) k = k.map(function(d) { return _SWAP13[d]; });
+  var bEff = b;
   // For closed s, include the closing digit so sj cycles with period m (not m-1).
-  // Without this, joints past j[m-2] wrap to j[0] instead of the closing digit,
-  // misassigning every joint from that point onward.
   var sJoints = sClosed ? j.concat([closingDigit(j)]) : j;
   var sM = sJoints.length;
   function sj(i) { return sJoints[((i % sM) + sM) % sM]; }
   function lj(i) { return k[((i % n) + n) % n]; }
   var res = [];
   if (sClosed) {
-    // d0-starting representation: always produces m+n-1 items
-    // L-block is always forward; flip reverses the s-block traversal direction.
-    res.push((lj(b - 1) + 2) % 4);
-    for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
-    res.push((lj(b - 2) + 2) % 4);
+    res.push((lj(bEff - 1) + 2) % 4);
+    for (var i = 0; i < n - 2; i++) res.push(lj(bEff + i));
+    res.push((lj(bEff - 2) + 2) % 4);
     res.push((sj(a) + 2) % 4);
-    if (flip) {
-      for (var i = 0; i < j.length - 1; i++) res.push(sj(a - 1 - i));  // reversed
-    } else {
-      for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));  // forward
-    }
+    for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));
   } else {
-    // Open s: flip reverses the right (post-join) portion of s.
     for (var i = 0; i < a - 1; i++) res.push(j[i]);
     if (a > 0) res.push((j[a - 1] + 2) % 4);
-    res.push((lj(b - 1) + 2) % 4);
-    for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
-    res.push((lj(b - 2) + 2) % 4);
+    res.push((lj(bEff - 1) + 2) % 4);
+    for (var i = 0; i < n - 2; i++) res.push(lj(bEff + i));
+    res.push((lj(bEff - 2) + 2) % 4);
     if (a < j.length) {
       res.push((j[a] + 2) % 4);
-      if (flip) {
-        for (var i = 0; i < j.length - 1 - a; i++) res.push(j[j.length - 1 - i]);  // reversed
-      } else {
-        for (var i = 0; i < j.length - 1 - a; i++) res.push(j[a + 1 + i]);  // forward
-      }
+      for (var i = 0; i < j.length - 1 - a; i++) res.push(j[a + 1 + i]);
     }
   }
   return res;
@@ -3599,27 +3600,21 @@ function _composeComputeLabels(sDigits, sClosed, lFull, a, b, flip) {
   var n = lFull.length;         // segments in l (full, including closing digit = n segments)
   var labels = [];
   if (sClosed) {
-    // l-block: n segs l[(b+k) mod n], k=0..n-1 (same whether flipped or not)
-    for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
-    // s-block: forward or reversed from a
-    if (flip) {
-      for (var j = 0; j < m; j++) labels.push((a - j + m) % m + 1);  // reversed
-    } else {
-      for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);       // forward
-    }
+    // l-block: forward or backward from b depending on flip
+    for (var k = 0; k < n; k++)
+      labels.push(flip ? (b - k + n) % n + 1 : (b + k) % n + 1);
+    // s-block: always forward from a
+    for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);
   } else {
-    // s prefix: s[0..a-1] (same)
+    // s prefix: s[0..a-1]
     for (var i = 0; i < a; i++) labels.push(i + 1);
-    // s[a] (same)
+    // s[a]
     labels.push(a + 1);
-    // l-block: n segs l[(b+k) mod n], k=0..n-1 (same)
-    for (var k = 0; k < n; k++) labels.push((b + k) % n + 1);
-    // s suffix: forward or reversed
-    if (flip) {
-      for (var i = 0; i < m - a - 1; i++) labels.push(m - i);  // m, m-1, ..., a+2
-    } else {
-      for (var i = a + 1; i < m; i++) labels.push(i + 1);       // a+2, ..., m
-    }
+    // l-block: forward or backward from b depending on flip
+    for (var k = 0; k < n; k++)
+      labels.push(flip ? (b - k + n) % n + 1 : (b + k) % n + 1);
+    // s suffix: always forward
+    for (var i = a + 1; i < m; i++) labels.push(i + 1);
   }
   return labels;
 }
@@ -3639,7 +3634,7 @@ function _composeComputeLBlock(sDigits, sClosed, lFull, a, b) {
 function _composeUpdate() {
   if (!_composeS || !_composeL) return;
   var res = _joinLoops(_composeS.digits, _composeS.closed,
-                       _composeL.full, _composeA, _composeB, _composeFlip);
+                       _composeL.full, _composeA, _composeB, _composeFlip, _composeSwap13);
   _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
                                          _composeL.full, _composeA, _composeB, _composeFlip);
   _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
@@ -3679,6 +3674,14 @@ function _updateFlipButton() {
   else btn.classList.remove('flip-active');
 }
 
+function _updateS13Button() {
+  var btn = document.getElementById('compose-s13-btn');
+  var chiral = _composeL && isChiral(_composeL.full.slice(0, -1), _composeL.full[_composeL.full.length - 1]);
+  btn.disabled = !chiral;
+  if (_composeSwap13) btn.classList.add('s13-active');
+  else btn.classList.remove('s13-active');
+}
+
 function _composeSetFlip(flip) {
   if (flip === _composeFlip) return;
   _undoPush();
@@ -3687,12 +3690,22 @@ function _composeSetFlip(flip) {
   _composeUpdate();
 }
 
+function _composeSetSwap13(val) {
+  if (val === _composeSwap13) return;
+  _undoPush();
+  _composeSwap13 = val;
+  _updateS13Button();
+  _composeUpdate();
+}
+
 function _composeClearL() {
   _composeL = null;
   _composeLabels = null;
   _composeLBlock = null;
   _composeFlip = false;
+  _composeSwap13 = false;
   _updateFlipButton();
+  _updateS13Button();
   document.getElementById('compose-l-prompt').style.display = '';
   document.getElementById('compose-l-info').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'none';
@@ -3728,7 +3741,9 @@ function _composeSelectL(fig) {
   _composeL = { name: fig.name, code: fig.code, full: full };
   _composeB = 0;
   _composeFlip = false;
+  _composeSwap13 = false;
   _updateFlipButton();
+  _updateS13Button();
   document.getElementById('compose-l-name').textContent = fig.name;
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-l-info').style.display = 'flex';
@@ -3750,7 +3765,9 @@ function _enterComposeMode() {
   _composeA = 0;
   _composeL = null;
   _composeFlip = false;
+  _composeSwap13 = false;
   _updateFlipButton();
+  _updateS13Button();
 
   var m = r.digits.length + 1;
   var sMaxDisplay = m;
@@ -3791,7 +3808,9 @@ function _exitComposeMode() {
   _composeLBlock = null;
   _composeLColor = -1;
   _composeFlip = false;
+  _composeSwap13 = false;
   _updateFlipButton();
+  _updateS13Button();
   _undoStack = [];
   document.getElementById('btn-undo').disabled = true;
   if (showNumbers) {
@@ -3825,6 +3844,7 @@ document.getElementById('compose-a-inc').addEventListener('click', function() { 
 document.getElementById('compose-b-dec').addEventListener('click', function() { _composeSetB(_composeB); });
 document.getElementById('compose-b-inc').addEventListener('click', function() { _composeSetB(_composeB + 2); });
 document.getElementById('compose-flip-btn').addEventListener('click', function() { _composeSetFlip(!_composeFlip); });
+document.getElementById('compose-s13-btn').addEventListener('click', function() { _composeSetSwap13(!_composeSwap13); });
 
 document.getElementById('compose-a-input').addEventListener('change', function() {
   _composeSetA(parseInt(this.value, 10) || 1);
