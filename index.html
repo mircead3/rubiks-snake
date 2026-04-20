@@ -348,8 +348,8 @@ span.cursor-mark {
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry. Entering compose mode exits edit mode.</td></tr>
-      <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop (snake b) onto the current figure (snake a). Set attachment segment <strong>a</strong> on the base snake, then click any closed figure to select it as the loop and set <strong>b</strong>. The result is shown live; the loop's segments are shown in a distinct color. Each selector change is individually undoable.<br><br>
-        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b is rotated 180° around the axis normal to segment b before joining. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
+      <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Snake <strong>a</strong> is the base figure; snake <strong>b</strong> is the closed loop to attach. Click any closed figure in a list to select it as snake b. The result is shown live; snake b's segments appear in a distinct color. Each selector change is individually undoable.<br><br>
+        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed, which is equivalent to a 180° rotation around the axis normal to the joint surface. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
         <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Log</strong> — appears in the right panel once at least one loop has been added. Downloads a plain-text record of the full composition: base snake, each added loop with its a/b/flip/C settings, and the result code after each step.</td></tr>
@@ -3744,7 +3744,7 @@ function _composeRenderStack() {
       var n = e.l.full.length;
       var aMax = aRanges[i];
       var chiral = isChiral(e.l.full.slice(0, -1), e.l.full[e.l.full.length - 1]);
-      var s13Title = chiral ? 'Mirror: apply swap 1\u21943 to snake b (only for chiral loops)' : '';
+      var s13Title = chiral ? 'Mirror' : '';
       div.innerHTML =
         '<div class="compose-l-info">' +
           '<span class="compose-l-name">' + e.l.name + '</span>' +
@@ -3761,7 +3761,7 @@ function _composeRenderStack() {
           '<input class="compose-num compose-b-input" type="number" min="1" value="' + (e.b + 1) + '">' +
           '<button class="compose-step compose-b-inc">\u25ba</button>' +
           '<span class="compose-max compose-b-max">1\u2013' + n + '</span>' +
-          '<button class="compose-step compose-flip-btn' + (e.flip ? ' flip-active' : '') + '" title="Flip: rotate snake b 180\u00b0 around the face normal of sb">\u2194</button>' +
+          '<button class="compose-step compose-flip-btn' + (e.flip ? ' flip-active' : '') + '" title="Reverse (rotates 180 degrees)">\u2194</button>' +
           '<button class="compose-step compose-s13-btn' + (e.swap13 ? ' s13-active' : '') + '" title="' + s13Title + '"' + (chiral ? '' : ' disabled') + '>C</button>' +
         '</div>';
     }
