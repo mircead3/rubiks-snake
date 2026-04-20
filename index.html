@@ -2286,9 +2286,10 @@ function buildNumberFaces(transforms) {
       var hh = fd.sc * 0.12;
       // rect faces: number same color as segment → contrasts with opposite-colored inner rect
       // tri  faces: number opposite to segment   → contrasts with face itself
+      var _segCol = (_composeLBlock && _composeLBlock[i]) ? _composeLColor : _lastSnakeColor;
       var col = fd.rect
-        ? ((i % 2 === 0) ? _lastSnakeColor : 0xFFFFFF)
-        : ((i % 2 === 0) ? 0xFFFFFF : _lastSnakeColor);
+        ? ((i % 2 === 0) ? _segCol : 0xFFFFFF)
+        : ((i % 2 === 0) ? 0xFFFFFF : _segCol);
       var mesh = new THREE.Mesh(
         makeNumQuadGeo(fd, hw, hh),
         new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.1, side: THREE.DoubleSide, color: col })
@@ -2318,9 +2319,11 @@ function highlightNumberFaces(hitIndices) {
     var label = _composeLabels ? _composeLabels[i] : (showNumbers ? ((i + _numberOffset) % N + N) % N + 1 : i + 1);
     var isRect = child.userData.faceIsRect;
     var col;
+    var isLSeg = _composeLBlock && _composeLBlock[i];
+    var segCol = isLSeg ? _composeLColor : _lastSnakeColor;
     if (isHit) col = 0xff6600;
-    else if (isRect) col = (i % 2 === 0) ? _lastSnakeColor : 0xFFFFFF;
-    else              col = (i % 2 === 0) ? 0xFFFFFF : _lastSnakeColor;
+    else if (isRect) col = (i % 2 === 0) ? segCol : 0xFFFFFF;
+    else              col = (i % 2 === 0) ? 0xFFFFFF : segCol;
     var newTex = getNumTexture(label);
     if (child.material.map !== newTex) { child.material.map = newTex; }
     child.material.color.setHex(col);
