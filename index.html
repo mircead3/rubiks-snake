@@ -98,7 +98,7 @@ span.cursor-mark {
   display:flex; align-items:center; gap:8px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
 }
-.row-spacer { flex:0 0 28px; }
+.row-spacer { flex:0 0 14px; }
 
 
 #left-panel {
@@ -288,6 +288,9 @@ span.cursor-mark {
     </div>
     <div id="compose-s-name" style="display:none"></div>
     <div id="compose-entries"></div>
+    <div id="compose-log-row" style="display:none; margin-top:8px; padding-left:2px;">
+      <button class="btn" onclick="downloadComposeLog()" title="Download a text record of this composition">Log</button>
+    </div>
     <div class="panel-divider"></div>
   </div>
 </div>
@@ -3191,6 +3194,43 @@ function downloadImage() {
   a.click();
 }
 
+function downloadComposeLog() {
+  if (!_composeS || _composeStack.length === 0) return;
+  var chain = _composeComputeChain();
+  var lines = [];
+
+  // Helper: format a code with closing digit in parens, e.g. "12312(3)"
+  function fmtCode(digits, cd) {
+    return digits.join('') + (cd >= 0 ? '(' + cd + ')' : '');
+  }
+
+  // Base snake
+  var baseCD = _composeS.closed ? closingDigit(_composeS.digits) : -1;
+  var baseName = document.getElementById('compose-s-name').textContent || '(unnamed)';
+  var baseSegs = _composeS.digits.length + 1;
+  lines.push('Base:   ' + baseName + '  ' + fmtCode(_composeS.digits, baseCD) + '  (' + baseSegs + ' segments)');
+  lines.push('');
+
+  // Each composition step
+  for (var i = 0; i < _composeStack.length; i++) {
+    var e = _composeStack[i];
+    var loopCD = e.l.full[e.l.full.length - 1];
+    var loopCode = fmtCode(e.l.full.slice(0, -1), loopCD);
+    var flags = '  a=' + (e.a + 1) + ' b=' + (e.b + 1) + (e.flip ? ' \u2194' : '') + (e.swap13 ? ' C' : '');
+    lines.push('Step ' + (i + 1) + ': ' + e.l.name + '  ' + loopCode + flags);
+    var resDigits = chain[i].digits;
+    var resCD = isClosed(resDigits) ? closingDigit(resDigits) : -1;
+    lines.push('        \u2192 ' + fmtCode(resDigits, resCD) + '  (' + (resDigits.length + 1) + ' segments)');
+    lines.push('');
+  }
+
+  var text = lines.join('\n');
+  var a = document.createElement('a');
+  a.download = (nameInput.value.trim() || 'composition') + '_log.txt';
+  a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
+  a.click();
+}
+
 function saveFigure() {
   var name = nameInput.value.trim();
   if (!name) { setError('Enter a figure name to save.'); return; }
@@ -3662,10 +3702,12 @@ function _composeRenderStack() {
   if (_composeStack.length === 0) {
     document.getElementById('compose-l-prompt').style.display = '';
     document.getElementById('compose-s-name').style.display = 'none';
+    document.getElementById('compose-log-row').style.display = 'none';
     return;
   }
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'block';
+  document.getElementById('compose-log-row').style.display = '';
 
   // Compute a-ranges: entry i's a-range = number of segments before step i.
   // Use the actual chain computation to get correct counts (avoids closed-s formula ambiguity).
@@ -3848,6 +3890,7 @@ function _exitComposeMode() {
   }
   document.getElementById('compose-panel').style.display = 'none';
   document.getElementById('compose-entries').innerHTML = '';
+  document.getElementById('compose-log-row').style.display = 'none';
   var btnC = document.getElementById('btn-compose');
   btnC.style.opacity = '0.5';
   btnC.style.background = '';
