@@ -267,6 +267,7 @@ span.cursor-mark {
   <div id="view-row">
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
     <button class="btn" id="btn-copy" title="Copy code to clipboard" onclick="navigator.clipboard.writeText(document.getElementById('code-input').value)">Copy</button>
+    <button class="btn" id="btn-image" title="Download image of current view" onclick="downloadImage()">Image</button>
     <span class="row-spacer"></span>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
@@ -339,6 +340,7 @@ span.cursor-mark {
     <table>
       <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
       <tr><td>Copy</td><td>Copy the current code to the clipboard.</td></tr>
+      <tr><td>Image</td><td>Download a PNG image of the current view. The file is named after the current figure.</td></tr>
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
@@ -1444,7 +1446,7 @@ span.cursor-mark {
 // ─── SCENE SETUP ───────────────────────────────────────────────────────────────
 var renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
 } catch(e) {
   document.body.innerHTML = '<div style="color:#f88;padding:20px;font-size:16px">WebGL init failed: ' + e + '</div>';
   throw e;
@@ -3180,6 +3182,15 @@ function undoDelete() {
 }
 
 // ─── SAVE / DOWNLOAD ───────────────────────────────────────────────────────────
+function downloadImage() {
+  renderer.render(scene, camera);
+  var url = renderer.domElement.toDataURL('image/png');
+  var a = document.createElement('a');
+  a.download = (nameInput.value.trim() || 'snake') + '.png';
+  a.href = url;
+  a.click();
+}
+
 function saveFigure() {
   var name = nameInput.value.trim();
   if (!name) { setError('Enter a figure name to save.'); return; }
