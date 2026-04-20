@@ -3678,13 +3678,15 @@ function _composeRecompute() {
     _INNER_MAT_L.color.setHex(e0.color);
     _composeLColor = e0.color;
   } else {
-    // Multi-entry: highlight only last added loop's segments, using its color
-    _composeLabels = null;
+    // Multi-entry: use intermediate result as s for the last step's labels/lBlock.
+    // This labels s-segments 1..m and l-segments 1..n, so the user can identify
+    // which segments of the final snake belong to snake a (the intermediate result).
     var lastE = _composeStack[_composeStack.length - 1];
     MAT_L.color.setHex(lastE.color);
     _INNER_MAT_L.color.setHex(lastE.color);
     _composeLColor = lastE.color;
     var prevD = chain[chain.length - 2].digits;
+    _composeLabels = _composeComputeLabels(prevD, false, lastE.l.full, lastE.a, lastE.b, lastE.flip);
     _composeLBlock = _composeComputeLBlock(prevD, false, lastE.l.full, lastE.a, lastE.b);
   }
 
