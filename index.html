@@ -182,13 +182,13 @@ span.cursor-mark {
 #compose-panel { width:100%; }
 #compose-s-info { font-size:11px; color:rgba(255,180,80,0.9); margin-bottom:4px; padding-left:2px; }
 #compose-l-row { margin-bottom:4px; padding-left:2px; }
-#compose-l-info { font-size:11px; color:rgba(255,180,80,0.9); display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:2px; }
-#compose-l-clear { background:none; border:none; color:rgba(255,120,80,0.7); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; }
-#compose-l-clear:hover { color:#ff8866; }
-#compose-a-row, #compose-b-row { padding-left:2px; }
+.compose-l-info { font-size:11px; color:rgba(255,180,80,0.9); display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:2px; }
+.compose-l-clear { background:none; border:none; color:rgba(255,120,80,0.7); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; }
+.compose-l-clear:hover { color:#ff8866; }
+.compose-a-row, .compose-b-row { padding-left:2px; }
 #compose-s-name { font-size:11px; color:rgba(255,180,80,0.9); padding-left:2px; margin-top:8px; }
-#compose-a-row { margin-top:4px; }
-#compose-b-row { margin-top:10px; }
+.compose-a-row { margin-top:4px; }
+.compose-b-row { margin-top:10px; }
 .compose-input-row { display:flex; align-items:center; gap:5px; margin:4px 0; }
 .compose-lbl { font-size:11px; color:rgba(255,180,80,0.7); width:12px; }
 .compose-step { background:rgba(60,40,10,0.8); border:1px solid rgba(200,150,50,0.35); color:#cc9944; border-radius:4px; cursor:pointer; font-size:10px; padding:1px 5px; line-height:1.4; }
@@ -197,11 +197,14 @@ span.cursor-mark {
 .compose-num::-webkit-outer-spin-button, .compose-num::-webkit-inner-spin-button { -webkit-appearance:none; }
 .compose-num:focus { border-color:rgba(255,180,60,0.6); }
 .compose-max { font-size:10px; color:rgba(180,140,60,0.5); }
-#compose-flip-btn { margin-left:4px; }
-#compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
-#compose-s13-btn { margin-left:4px; }
-#compose-s13-btn.s13-active { background:rgba(20,100,180,0.5); border-color:rgba(40,160,255,0.8); color:#66ccff; }
-#compose-s13-btn:disabled { opacity:0.3; cursor:default; }
+.compose-flip-btn { margin-left:4px; }
+.compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
+.compose-s13-btn { margin-left:4px; }
+.compose-s13-btn.s13-active { background:rgba(20,100,180,0.5); border-color:rgba(40,160,255,0.8); color:#66ccff; }
+.compose-s13-btn:disabled { opacity:0.3; cursor:default; }
+.compose-entry { margin-top:8px; border-top:1px solid rgba(180,140,60,0.15); padding-top:6px; }
+.compose-entry:first-child { border-top:none; margin-top:0; padding-top:0; }
+.compose-entry-mid { margin-top:2px; padding-top:0; border-top:none; }
 
 #error-msg {
   color:#ff8080; font-size:11px; min-height:16px; pointer-events:none;
@@ -283,24 +286,7 @@ span.cursor-mark {
       <div id="compose-l-prompt" class="panel-label" style="color:rgba(255,170,60,0.8)">Select a closed snake</div>
     </div>
     <div id="compose-s-name" style="display:none"></div>
-    <div id="compose-a-row" style="display:none" class="compose-input-row">
-      <button class="compose-step" id="compose-a-dec">◀</button>
-      <input class="compose-num" id="compose-a-input" type="number" min="1" value="1">
-      <button class="compose-step" id="compose-a-inc">▶</button>
-      <span class="compose-max" id="compose-a-max"></span>
-    </div>
-    <div id="compose-l-info" style="display:none">
-      <span id="compose-l-name"></span>
-      <button id="compose-l-clear" title="Clear loop selection">✕</button>
-    </div>
-    <div id="compose-b-row" style="display:none" class="compose-input-row">
-      <button class="compose-step" id="compose-b-dec">◀</button>
-      <input class="compose-num" id="compose-b-input" type="number" min="1" value="1">
-      <button class="compose-step" id="compose-b-inc">▶</button>
-      <span class="compose-max" id="compose-b-max"></span>
-      <button class="compose-step" id="compose-flip-btn" title="Flip: rotate snake b 180° around the face normal of sb">↔</button>
-      <button class="compose-step" id="compose-s13-btn" disabled>C</button>
-    </div>
+    <div id="compose-entries"></div>
     <div class="panel-divider"></div>
   </div>
 </div>
@@ -359,7 +345,8 @@ span.cursor-mark {
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry. Entering compose mode exits edit mode.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop (snake b) onto the current figure (snake a). Set attachment segment <strong>a</strong> on the base snake, then click any closed figure to select it as the loop and set <strong>b</strong>. The result is shown live; the loop's segments are shown in a distinct color. Each selector change is individually undoable.<br><br>
         <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b is rotated 180° around the axis normal to segment b before joining. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
-        <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.</td></tr>
+        <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.<br><br>
+        <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>Cursor mark</td><td>When you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
     </table>
@@ -2492,8 +2479,7 @@ function _undoPush() {
   var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
   if (_composeMode) {
     entry.composeState = {
-      a: _composeA, b: _composeB, flip: _composeFlip, swap13: _composeSwap13,
-      l: _composeL,
+      stack: _composeStack.map(function(e) { return Object.assign({}, e); }),
       s: _composeS,
       sName: document.getElementById('compose-s-name').textContent,
       labels: _composeLabels ? _composeLabels.slice() : null,
@@ -2508,55 +2494,19 @@ function undoCode() {
   if (_undoStack.length === 0) return;
   var state = _undoStack.pop();
   _updateUndoButton();
-  codeInput.value = state.value;
   if (_composeMode && state.composeState) {
     var cs = state.composeState;
-    _composeA = cs.a;
-    _composeB = cs.b;
-    _composeFlip = cs.flip || false;
-    _composeSwap13 = cs.swap13 || false;
-    _updateFlipButton();
-    _updateS13Button();
-    _composeL = cs.l;
     _composeS = cs.s;
+    _composeStack = cs.stack.map(function(e) { return Object.assign({}, e); });
     _composeLabels = cs.labels;
     _composeLBlock = cs.lBlock || null;
     _composeLColor = (cs.lColor !== undefined) ? cs.lColor : -1;
     if (_composeLColor >= 0) { MAT_L.color.setHex(_composeLColor); _INNER_MAT_L.color.setHex(_composeLColor); }
-    lengthInput.value = state.value.length + 1;
-    if (_composeL) {
-      // restore full compose UI
-      document.getElementById('compose-l-prompt').style.display = 'none';
-      document.getElementById('compose-l-info').style.display = 'flex';
-      document.getElementById('compose-l-name').textContent = _composeL.name;
-      var m = _composeS.digits.length + 1;
-      document.getElementById('compose-a-input').value = _composeA + 1;
-      document.getElementById('compose-a-max').textContent = '1–' + m;
-      document.getElementById('compose-s-name').textContent = cs.sName;
-      document.getElementById('compose-s-name').style.display = 'block';
-      document.getElementById('compose-a-row').style.display = 'flex';
-      var n = _composeL.full.length;
-      document.getElementById('compose-b-input').value = _composeB + 1;
-      document.getElementById('compose-b-max').textContent = '1–' + n;
-      document.getElementById('compose-b-row').style.display = 'flex';
-      codeInput.value = state.value;
-      autoResizeCode();
-      clearError();
-      buildSnake(state.value.split('').map(Number), false);
-    } else {
-      // no loop was selected — show prompt, display base snake
-      document.getElementById('compose-l-prompt').style.display = '';
-      document.getElementById('compose-l-info').style.display = 'none';
-      document.getElementById('compose-s-name').style.display = 'none';
-      document.getElementById('compose-a-row').style.display = 'none';
-      document.getElementById('compose-b-row').style.display = 'none';
-      codeInput.value = state.value;
-      lengthInput.value = _composeS.digits.length + 1;
-      autoResizeCode();
-      clearError();
-      buildSnake(_composeS.digits, false);
-    }
+    document.getElementById('compose-s-name').textContent = cs.sName;
+    _composeRenderStack();
+    _composeRecompute();
   } else {
+    codeInput.value = state.value;
     codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
     _savedCursorPos = state.selStart;
     applyCode();
@@ -3552,13 +3502,9 @@ loop9m 13032302
 loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed. Courtesy of Songming Hou');
 // ─── COMPOSE MODE ─────────────────────────────────────────────────────────────
 
-var _composeMode = false;
-var _composeS    = null;  // { digits, closed }
-var _composeL    = null;  // { name, code, full } — the chosen closed loop
-var _composeA      = 0;
-var _composeB      = 0;
-var _composeFlip   = false;
-var _composeSwap13 = false;
+var _composeMode  = false;
+var _composeS     = null;  // { digits, closed } — the original base snake
+var _composeStack = [];    // [{l:{name,code,full}, a, b, flip, swap13, color}, ...]
 
 // Join formula (verified against multiple examples).
 // sDigits: stored digits (length m-1 for closed, m-1 for open if m segs)
@@ -3637,96 +3583,191 @@ function _composeComputeLBlock(sDigits, sClosed, lFull, a, b) {
   return lb;
 }
 
-function _composeUpdate() {
-  if (!_composeS || !_composeL) return;
-  var res = _joinLoops(_composeS.digits, _composeS.closed,
-                       _composeL.full, _composeA, _composeB, _composeFlip, _composeSwap13);
-  _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
-                                         _composeL.full, _composeA, _composeB, _composeFlip);
-  _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
-                                         _composeL.full, _composeA, _composeB);
-  var code = res.join('');
-  codeInput.value = code;
-  lengthInput.value = res.length + 1;
-  autoResizeCode();
-  clearError();
-  buildSnake(res, false);
+// ── Chain computation ──────────────────────────────────────────────────────────
+// Returns array of intermediate results, one per stack entry.
+// results[i].digits = stored digits after applying stack[0..i].
+function _composeComputeChain() {
+  var results = [];
+  var sDigits = _composeS.digits;
+  var sClosed = _composeS.closed;
+  for (var i = 0; i < _composeStack.length; i++) {
+    var e = _composeStack[i];
+    var res = _joinLoops(sDigits, sClosed, e.l.full, e.a, e.b, e.flip, e.swap13);
+    results.push({ digits: res });
+    sDigits = res;
+    sClosed = false;  // result of any join is always open
+  }
+  return results;
 }
 
-function _composeSetA(val) {
-  // closed: a in 0..m-2 (m-1 choices); open: a in 0..m-1 (m choices); val is 1-based
-  var sLen = _composeS ? _composeS.digits.length + 1 : 1;
-  var newA = (((val - 1) % sLen) + sLen) % sLen;
-  if (newA === _composeA) return;  // no change, no push
-  _undoPush();
-  _composeA = newA;
-  document.getElementById('compose-a-input').value = _composeA + 1;
-  _composeUpdate();
-}
-
-function _composeSetB(val) {
-  var n = _composeL ? _composeL.full.length : 1;
-  var newB = (((val - 1) % n) + n) % n;
-  if (newB === _composeB) return;  // no change, no push
-  _undoPush();
-  _composeB = newB;
-  document.getElementById('compose-b-input').value = _composeB + 1;
-  _composeUpdate();
-}
-
-function _updateFlipButton() {
-  var btn = document.getElementById('compose-flip-btn');
-  if (_composeFlip) btn.classList.add('flip-active');
-  else btn.classList.remove('flip-active');
-}
-
-function _updateS13Button() {
-  var btn = document.getElementById('compose-s13-btn');
-  var chiral = _composeL && isChiral(_composeL.full.slice(0, -1), _composeL.full[_composeL.full.length - 1]);
-  btn.disabled = !chiral;
-  btn.title = chiral ? 'Mirror: apply swap 1\u21943 to snake b (only for chiral loops)' : '';
-  if (_composeSwap13) btn.classList.add('s13-active');
-  else btn.classList.remove('s13-active');
-}
-
-function _composeSetFlip(flip) {
-  if (flip === _composeFlip) return;
-  _undoPush();
-  _composeFlip = flip;
-  _updateFlipButton();
-  _composeUpdate();
-}
-
-function _composeSetSwap13(val) {
-  if (val === _composeSwap13) return;
-  _undoPush();
-  _composeSwap13 = val;
-  _updateS13Button();
-  _composeUpdate();
-}
-
-function _composeClearL() {
-  _undoPush();
-  _composeL = null;
-  _composeLabels = null;
-  _composeLBlock = null;
-  _composeFlip = false;
-  _composeSwap13 = false;
-  _updateFlipButton();
-  _updateS13Button();
-  document.getElementById('compose-l-prompt').style.display = '';
-  document.getElementById('compose-l-info').style.display = 'none';
-  document.getElementById('compose-s-name').style.display = 'none';
-  document.getElementById('compose-a-row').style.display = 'none';
-  document.getElementById('compose-b-row').style.display = 'none';
-  // restore s display
-  if (_composeS) {
+function _composeRecompute() {
+  if (!_composeS) return;
+  if (_composeStack.length === 0) {
+    _composeLabels = null;
+    _composeLBlock = null;
     codeInput.value = _composeS.digits.join('');
     lengthInput.value = _composeS.digits.length + 1;
     autoResizeCode();
+    clearError();
+    buildSnake(_composeS.digits, _composeS.closed);
+    return;
   }
+  var chain = _composeComputeChain();
+  var finalDigits = chain[chain.length - 1].digits;
+
+  // Labels and lBlock: only for single-entry stacks (multi-entry is too ambiguous)
+  if (_composeStack.length === 1) {
+    var e0 = _composeStack[0];
+    _composeLabels = _composeComputeLabels(_composeS.digits, _composeS.closed,
+                                           e0.l.full, e0.a, e0.b, e0.flip);
+    _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
+                                           e0.l.full, e0.a, e0.b);
+    MAT_L.color.setHex(e0.color);
+    _INNER_MAT_L.color.setHex(e0.color);
+    _composeLColor = e0.color;
+  } else {
+    // Multi-entry: highlight only last added loop's segments, using its color
+    _composeLabels = null;
+    var lastE = _composeStack[_composeStack.length - 1];
+    MAT_L.color.setHex(lastE.color);
+    _INNER_MAT_L.color.setHex(lastE.color);
+    _composeLColor = lastE.color;
+    var prevD = chain[chain.length - 2].digits;
+    _composeLBlock = _composeComputeLBlock(prevD, false, lastE.l.full, lastE.a, lastE.b);
+  }
+
+  codeInput.value = finalDigits.join('');
+  lengthInput.value = finalDigits.length + 1;
+  autoResizeCode();
   clearError();
-  if (_composeS) buildSnake(_composeS.digits, false);
+  buildSnake(finalDigits, false);
+}
+
+// ── Stack entry rendering ──────────────────────────────────────────────────────
+function _composeRenderStack() {
+  var container = document.getElementById('compose-entries');
+  container.innerHTML = '';
+
+  if (_composeStack.length === 0) {
+    document.getElementById('compose-l-prompt').style.display = '';
+    document.getElementById('compose-s-name').style.display = 'none';
+    return;
+  }
+  document.getElementById('compose-l-prompt').style.display = 'none';
+  document.getElementById('compose-s-name').style.display = 'block';
+
+  // Compute a-ranges: entry i's a-range = number of segments before step i.
+  // Use the actual chain computation to get correct counts (avoids closed-s formula ambiguity).
+  var chain = _composeComputeChain();
+  var aRanges = [];
+  for (var i = 0; i < _composeStack.length; i++) {
+    var prevSegs = (i === 0 ? _composeS.digits.length + 1 : chain[i - 1].digits.length + 1);
+    aRanges.push(prevSegs);
+  }
+
+  var isLast = _composeStack.length - 1;
+  for (var i = 0; i < _composeStack.length; i++) {
+    var e = _composeStack[i];
+    var div = document.createElement('div');
+    div.className = 'compose-entry';
+    div.dataset.idx = i;
+
+    if (i < isLast) {
+      // Intermediate entries: name only, no controls
+      div.classList.add('compose-entry-mid');
+      div.innerHTML =
+        '<div class="compose-l-info">' +
+          '<span class="compose-l-name">' + e.l.name + '</span>' +
+          '<span style="font-size:10px;color:rgba(180,140,60,0.4);margin-left:4px;">a=' + (e.a+1) + ' b=' + (e.b+1) + (e.flip ? ' ↔' : '') + (e.swap13 ? ' C' : '') + '</span>' +
+        '</div>';
+    } else {
+      // Last entry: full controls
+      var n = e.l.full.length;
+      var aMax = aRanges[i];
+      var chiral = isChiral(e.l.full.slice(0, -1), e.l.full[e.l.full.length - 1]);
+      var s13Title = chiral ? 'Mirror: apply swap 1\u21943 to snake b (only for chiral loops)' : '';
+      div.innerHTML =
+        '<div class="compose-l-info">' +
+          '<span class="compose-l-name">' + e.l.name + '</span>' +
+          '<button class="compose-l-clear" title="Remove this loop">\u2715</button>' +
+        '</div>' +
+        '<div class="compose-a-row compose-input-row">' +
+          '<button class="compose-step compose-a-dec">\u25c4</button>' +
+          '<input class="compose-num compose-a-input" type="number" min="1" value="' + (e.a + 1) + '">' +
+          '<button class="compose-step compose-a-inc">\u25ba</button>' +
+          '<span class="compose-max compose-a-max">1\u2013' + aMax + '</span>' +
+        '</div>' +
+        '<div class="compose-b-row compose-input-row">' +
+          '<button class="compose-step compose-b-dec">\u25c4</button>' +
+          '<input class="compose-num compose-b-input" type="number" min="1" value="' + (e.b + 1) + '">' +
+          '<button class="compose-step compose-b-inc">\u25ba</button>' +
+          '<span class="compose-max compose-b-max">1\u2013' + n + '</span>' +
+          '<button class="compose-step compose-flip-btn' + (e.flip ? ' flip-active' : '') + '" title="Flip: rotate snake b 180\u00b0 around the face normal of sb">\u2194</button>' +
+          '<button class="compose-step compose-s13-btn' + (e.swap13 ? ' s13-active' : '') + '" title="' + s13Title + '"' + (chiral ? '' : ' disabled') + '>C</button>' +
+        '</div>';
+    }
+    container.appendChild(div);
+  }
+}
+
+// ── Per-entry setters ──────────────────────────────────────────────────────────
+function _composeSetEntryA(idx, val) {
+  var e = _composeStack[idx];
+  var prevSegs = (idx === 0 ? _composeS.digits.length + 1 : _composeComputeChain()[idx - 1].digits.length + 1);
+  var newA = (((val - 1) % prevSegs) + prevSegs) % prevSegs;
+  if (newA === e.a) return;
+  _undoPush();
+  e.a = newA;
+  // Update just the a input in the rendered entry
+  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  if (entryEl) entryEl.querySelector('.compose-a-input').value = newA + 1;
+  _composeRecompute();
+}
+
+function _composeSetEntryB(idx, val) {
+  var e = _composeStack[idx];
+  var n = e.l.full.length;
+  var newB = (((val - 1) % n) + n) % n;
+  if (newB === e.b) return;
+  _undoPush();
+  e.b = newB;
+  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  if (entryEl) entryEl.querySelector('.compose-b-input').value = newB + 1;
+  _composeRecompute();
+}
+
+function _composeSetEntryFlip(idx, flip) {
+  var e = _composeStack[idx];
+  if (flip === e.flip) return;
+  _undoPush();
+  e.flip = flip;
+  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  if (entryEl) {
+    var btn = entryEl.querySelector('.compose-flip-btn');
+    if (flip) btn.classList.add('flip-active'); else btn.classList.remove('flip-active');
+  }
+  _composeRecompute();
+}
+
+function _composeSetEntrySwap13(idx, val) {
+  var e = _composeStack[idx];
+  if (val === e.swap13) return;
+  _undoPush();
+  e.swap13 = val;
+  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  if (entryEl) {
+    var btn = entryEl.querySelector('.compose-s13-btn');
+    if (val) btn.classList.add('s13-active'); else btn.classList.remove('s13-active');
+  }
+  _composeRecompute();
+}
+
+function _composePopEntry() {
+  if (_composeStack.length === 0) return;
+  _undoPush();
+  _composeStack.pop();
+  _composeRenderStack();
+  _composeRecompute();
 }
 
 function _composeSelectL(fig) {
@@ -3735,38 +3776,19 @@ function _composeSelectL(fig) {
   var cd = closingDigit(digits);
   var full = digits.concat([cd]);
 
-  // Push undo state before applying; chain off current displayed result
   _undoPush();
-  var sDigits = codeInput.value.split('').map(Number);
-  var sClosed = isClosed(sDigits);
-  _composeS = { digits: sDigits, closed: sClosed };
-  _composeA = 0;
 
-  // Update a range for the (possibly new) s
-  var m = sDigits.length + 1;
-  document.getElementById('compose-a-input').value = 1;
-  document.getElementById('compose-a-max').textContent = '1–' + (m);
-  // Update base snake name (may have changed if chaining)
+  // Pick a color different from snake color and existing stack entry colors
+  var usedColors = _composeStack.map(function(e) { return e.color; });
+  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor && usedColors.indexOf(c) === -1; });
+  if (!choices.length) choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
+  var color = choices[Math.floor(Math.random() * choices.length)];
+
+  _composeStack.push({ l: { name: fig.name, code: fig.code, full: full }, a: 0, b: 0, flip: false, swap13: false, color: color });
+
   document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
-  document.getElementById('compose-s-name').style.display = 'block';
-
-  _pickComposeLColor();
-  _composeL = { name: fig.name, code: fig.code, full: full };
-  _composeB = 0;
-  _composeFlip = false;
-  _composeSwap13 = false;
-  _updateFlipButton();
-  _updateS13Button();
-  document.getElementById('compose-l-name').textContent = fig.name;
-  document.getElementById('compose-l-prompt').style.display = 'none';
-  document.getElementById('compose-l-info').style.display = 'flex';
-  var n = full.length;
-  document.getElementById('compose-b-input').value = 1;
-  document.getElementById('compose-b-max').textContent = '1–' + n;
-  document.getElementById('compose-a-row').style.display = 'flex';
-  document.getElementById('compose-b-row').style.display = 'flex';
-
-  _composeUpdate();
+  _composeRenderStack();
+  _composeRecompute();
 }
 
 function _enterComposeMode() {
@@ -3775,25 +3797,11 @@ function _enterComposeMode() {
   if (r.err) return;
   var closed = isClosed(r.digits);
   _composeS = { digits: r.digits, closed: closed };
-  _composeA = 0;
-  _composeL = null;
-  _composeFlip = false;
-  _composeSwap13 = false;
-  _updateFlipButton();
-  _updateS13Button();
-
-  var m = r.digits.length + 1;
-  var sMaxDisplay = m;
+  _composeStack = [];
 
   document.getElementById('compose-panel').style.display = 'block';
-  document.getElementById('compose-l-prompt').style.display = '';
-  document.getElementById('compose-l-info').style.display = 'none';
-  document.getElementById('compose-a-input').value = 1;
-  document.getElementById('compose-a-max').textContent = '1–' + sMaxDisplay;
   document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
-  document.getElementById('compose-s-name').style.display = 'none';
-  document.getElementById('compose-a-row').style.display = 'none';
-  document.getElementById('compose-b-row').style.display = 'none';
+  _composeRenderStack();  // shows prompt, hides s-name
 
   if (!showNumbers) {
     showNumbers = true;
@@ -3816,14 +3824,10 @@ function _enterComposeMode() {
 function _exitComposeMode() {
   _composeMode = false;
   _composeS = null;
-  _composeL = null;
+  _composeStack = [];
   _composeLabels = null;
   _composeLBlock = null;
   _composeLColor = -1;
-  _composeFlip = false;
-  _composeSwap13 = false;
-  _updateFlipButton();
-  _updateS13Button();
   _undoStack = [];
   _updateUndoButton();
   if (showNumbers) {
@@ -3832,8 +3836,7 @@ function _exitComposeMode() {
     if (numberGroup) numberGroup.visible = false;
   }
   document.getElementById('compose-panel').style.display = 'none';
-  document.getElementById('compose-a-row').style.display = 'none';
-  document.getElementById('compose-b-row').style.display = 'none';
+  document.getElementById('compose-entries').innerHTML = '';
   var btnC = document.getElementById('btn-compose');
   btnC.style.opacity = '0.5';
   btnC.style.background = '';
@@ -3849,21 +3852,39 @@ document.getElementById('btn-compose').addEventListener('click', function() {
   else { _enterComposeMode(); }
 });
 
-document.getElementById('compose-l-clear').addEventListener('click', _composeClearL);
-
-// ◀/▶ — _composeSetA/B take 1-based values; _composeA/B are stored 0-based
-document.getElementById('compose-a-dec').addEventListener('click', function() { _composeSetA(_composeA); });    // display is _composeA+1, decrement → _composeA+1-1 = _composeA
-document.getElementById('compose-a-inc').addEventListener('click', function() { _composeSetA(_composeA + 2); }); // increment → _composeA+1+1 = _composeA+2
-document.getElementById('compose-b-dec').addEventListener('click', function() { _composeSetB(_composeB); });
-document.getElementById('compose-b-inc').addEventListener('click', function() { _composeSetB(_composeB + 2); });
-document.getElementById('compose-flip-btn').addEventListener('click', function() { _composeSetFlip(!_composeFlip); });
-document.getElementById('compose-s13-btn').addEventListener('click', function() { _composeSetSwap13(!_composeSwap13); });
-
-document.getElementById('compose-a-input').addEventListener('change', function() {
-  _composeSetA(parseInt(this.value, 10) || 1);
+// Event delegation for all dynamic compose-entry controls
+document.getElementById('compose-entries').addEventListener('click', function(e) {
+  var entryEl = e.target.closest('.compose-entry');
+  if (!entryEl) return;
+  var idx = parseInt(entryEl.dataset.idx, 10);
+  var e2 = _composeStack[idx];
+  if (!e2) return;
+  if (e.target.classList.contains('compose-l-clear')) {
+    _composePopEntry();
+  } else if (e.target.classList.contains('compose-a-dec')) {
+    _composeSetEntryA(idx, e2.a);          // e2.a+1-1 = e2.a (1-based: pass e2.a)
+  } else if (e.target.classList.contains('compose-a-inc')) {
+    _composeSetEntryA(idx, e2.a + 2);      // e2.a+1+1 = e2.a+2
+  } else if (e.target.classList.contains('compose-b-dec')) {
+    _composeSetEntryB(idx, e2.b);
+  } else if (e.target.classList.contains('compose-b-inc')) {
+    _composeSetEntryB(idx, e2.b + 2);
+  } else if (e.target.classList.contains('compose-flip-btn')) {
+    _composeSetEntryFlip(idx, !e2.flip);
+  } else if (e.target.classList.contains('compose-s13-btn') && !e.target.disabled) {
+    _composeSetEntrySwap13(idx, !e2.swap13);
+  }
 });
-document.getElementById('compose-b-input').addEventListener('change', function() {
-  _composeSetB(parseInt(this.value, 10) || 1);
+
+document.getElementById('compose-entries').addEventListener('change', function(e) {
+  var entryEl = e.target.closest('.compose-entry');
+  if (!entryEl) return;
+  var idx = parseInt(entryEl.dataset.idx, 10);
+  if (e.target.classList.contains('compose-a-input')) {
+    _composeSetEntryA(idx, parseInt(e.target.value, 10) || 1);
+  } else if (e.target.classList.contains('compose-b-input')) {
+    _composeSetEntryB(idx, parseInt(e.target.value, 10) || 1);
+  }
 });
 
 function _addFetchTab(fileName, desc) {
