@@ -3744,18 +3744,23 @@ function _composeRenderStack() {
       var aMax = aRanges[i];
       var chiral = isChiral(e.l.full.slice(0, -1), e.l.full[e.l.full.length - 1]);
       var s13Title = chiral ? 'Mirror' : '';
+      var aCSS = '#' + ('000000' + _lastSnakeColor.toString(16)).slice(-6);
+      var bCSS = '#' + ('000000' + e.color.toString(16)).slice(-6);
+      var dot = 'display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:3px;';
       div.innerHTML =
-        '<div class="compose-l-info">' +
-          '<span class="compose-l-name">' + e.l.name + '</span>' +
-          '<button class="compose-l-clear" title="Remove this loop">\u2715</button>' +
-        '</div>' +
         '<div class="compose-a-row compose-input-row">' +
+          '<span style="' + dot + 'background:' + aCSS + '"></span>' +
           '<button class="compose-step compose-a-dec">\u25c4</button>' +
           '<input class="compose-num compose-a-input" type="number" min="1" value="' + (e.a + 1) + '">' +
           '<button class="compose-step compose-a-inc">\u25ba</button>' +
           '<span class="compose-max compose-a-max">1\u2013' + aMax + '</span>' +
         '</div>' +
+        '<div class="compose-l-info">' +
+          '<span class="compose-l-name">' + e.l.name + '</span>' +
+          '<button class="compose-l-clear" title="Remove this loop">\u2715</button>' +
+        '</div>' +
         '<div class="compose-b-row compose-input-row">' +
+          '<span style="' + dot + 'background:' + bCSS + '"></span>' +
           '<button class="compose-step compose-b-dec">\u25c4</button>' +
           '<input class="compose-num compose-b-input" type="number" min="1" value="' + (e.b + 1) + '">' +
           '<button class="compose-step compose-b-inc">\u25ba</button>' +
