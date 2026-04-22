@@ -275,6 +275,7 @@ span.cursor-mark {
     <span class="row-spacer"></span>
     <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
+    <button class="btn" id="btn-zero" title="Replace with all-zeros snake of same length, enter edit mode" onclick="zeroSnake()">Zero</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
   </div>
   <div id="error-msg"></div>
@@ -353,6 +354,7 @@ span.cursor-mark {
         <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Log</strong> — appears in the right panel once at least one loop has been added. Downloads a plain-text record of the full composition: base snake, each added loop with its a/b/flip/C settings, and the result code after each step.</td></tr>
+      <tr><td>Zero</td><td>Replace the current snake with an all-zeros snake of the same length, clear the name, and enter edit mode. Undoable.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
     </table>
 
@@ -2227,8 +2229,8 @@ function getNumTexture(n) {
   ctx.font = 'bold 48px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, cw / 2, 32);
-  // Underline any label containing '6' so it can't be confused with '9' when rotated 180°
-  if (label.indexOf('6') !== -1) {
+  // Underline labels containing '6' or '9' to distinguish them when rotated 180°
+  if (label.indexOf('6') !== -1 || label.indexOf('9') !== -1) {
     var metrics = ctx.measureText(label);
     var uw = Math.min(metrics.width + 4, cw - 4);
     var uy = 57;  // near bottom of 64px canvas
@@ -2515,6 +2517,7 @@ function undoCode() {
     _composeRecompute();
   } else {
     codeInput.value = state.value;
+    if (state.name !== undefined) nameInput.value = state.name;
     codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
     _savedCursorPos = state.selStart;
     applyCode();
@@ -2658,7 +2661,7 @@ codeInput.addEventListener('keydown', function(e) {
   }
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
-  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+  if (rollMode && e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
     e.preventDefault();
     _rotateCyclic(e.key === 'ArrowRight');
     return;
@@ -2829,10 +2832,10 @@ function _rotateCyclic(isRight) {
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+  if (rollMode && e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
       document.activeElement !== codeInput) {
     e.preventDefault();
-    if (rollMode) codeInput.focus();
+    codeInput.focus();
     _rotateCyclic(e.key === 'ArrowRight');
     return;
   }
@@ -2917,7 +2920,7 @@ document.getElementById('toggle-numbers').addEventListener('click', function() {
 });
 document.getElementById('toggle-numbers').style.opacity = '0.5';
 
-function _setEditMode(on) {
+function _setEditMode(on, keepUndo) {
   if (on && _composeMode) _exitComposeMode();
   rollMode = on;
   codeInput.readOnly = !on;
@@ -2933,18 +2936,33 @@ function _setEditMode(on) {
     btnE.style.borderColor = '';
     btnE.style.color = '';
   }
-  _undoStack = [];
-  _updateUndoButton();
+  if (!keepUndo) { _undoStack = []; _updateUndoButton(); }
   if (on && autoRotate) {
     autoRotate = false;
     document.getElementById('toggle-autorotate').style.opacity = '0.5';
   }
   if (!on) {
+    _stopFoldAnim();
+    codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
     _numberOffset = 0;
     codeInput.blur();
     _savedCursorPos = null;
     updateCodeDisplay();
   }
+}
+
+function zeroSnake() {
+  if (_composeMode) _exitComposeMode();
+  var zeros = '0'.repeat(getLength() - 1);
+  _undoPush();
+  _undoStack[_undoStack.length - 1].name = nameInput.value;
+  codeInput.value = zeros;
+  nameInput.value = '';
+  if (!rollMode) _setEditMode(true, true);
+  codeInput.focus();
+  codeInput.selectionStart = codeInput.selectionEnd = 0;
+  _savedCursorPos = 0;
+  applyDisplay();
 }
 
 document.getElementById('toggle-fold').addEventListener('click', function() {
@@ -2975,12 +2993,14 @@ function _stopFoldAnim() {
   _foldAnimating = false;
 }
 function _startFoldAnim(dir) {
+  var wasInEditMode = rollMode;
   if (!rollMode) { _setEditMode(true); }
   // Ensure textarea value is padded so cursor can reach the end
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
   while (raw.length < expected) raw += '0';
   if (codeInput.value !== raw) { var c = codeInput.selectionStart; codeInput.value = raw; codeInput.selectionStart = codeInput.selectionEnd = Math.min(c, raw.length); }
+  if (!wasInEditMode) { codeInput.selectionStart = codeInput.selectionEnd = raw.length; }
   codeInput.focus();
   _stopFoldAnim();
   _foldAnimating = true;
