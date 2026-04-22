@@ -43,6 +43,7 @@ canvas { display:block; touch-action:none; }
   -moz-appearance:textfield;
 }
 #length-input:focus { border-color:rgba(160,160,255,0.8); }
+#length-input[readonly] { opacity:0.45; cursor:default; }
 #length-input::-webkit-outer-spin-button,
 #length-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 #code-wrapper {
@@ -256,7 +257,7 @@ span.cursor-mark {
   </div>
   <div id="controls-row">
     <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
-    <input id="length-input" type="number" min="2" max="200" value="24">
+    <input id="length-input" type="number" min="2" max="200" value="24" readonly>
     <div id="code-wrapper">
       <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
@@ -2486,7 +2487,7 @@ function _updateUndoButton() {
   btn.textContent = n > 0 ? '\u21a9 ' + n : '\u21a9';
 }
 function _undoPush() {
-  var entry = { value: codeInput.value, selStart: codeInput.selectionStart };
+  var entry = { value: codeInput.value, selStart: codeInput.selectionStart, length: String(_lastAppliedLength) };
   if (_composeMode) {
     entry.composeState = {
       stack: _composeStack.map(function(e) { return Object.assign({}, e); }),
@@ -2518,6 +2519,7 @@ function undoCode() {
   } else {
     codeInput.value = state.value;
     if (state.name !== undefined) nameInput.value = state.name;
+    if (state.length !== undefined) { lengthInput.value = state.length; _lastAppliedLength = parseInt(state.length, 10); }
     codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
     _savedCursorPos = state.selStart;
     applyCode();
@@ -2706,8 +2708,11 @@ codeInput.addEventListener('input', function() {
   autoResizeCode();
   applyCode();
 });
+var _lastAppliedLength = 24;
 lengthInput.addEventListener('change', function() {
   var clamped = getLength();
+  if (clamped !== _lastAppliedLength) _undoPush();
+  _lastAppliedLength = clamped;
   lengthInput.value = clamped;
   var max = clamped - 1;
   var cur = codeInput.value;
@@ -2781,7 +2786,7 @@ function loadFigure(name, code) {
   if (rollMode) { _setEditMode(false); }
   pickSnakeColor();
   var n = code.length + 1;
-  lengthInput.value = n;
+  lengthInput.value = n; _lastAppliedLength = n;
   codeInput.value = code;
   autoResizeCode();
   clearError();
@@ -2924,6 +2929,7 @@ function _setEditMode(on, keepUndo) {
   if (on && _composeMode) _exitComposeMode();
   rollMode = on;
   codeInput.readOnly = !on;
+  if (on) lengthInput.readOnly = false;
   var btnE = document.getElementById('toggle-fold');
   if (on) {
     btnE.style.opacity = '1';
@@ -2948,6 +2954,7 @@ function _setEditMode(on, keepUndo) {
     codeInput.blur();
     _savedCursorPos = null;
     updateCodeDisplay();
+    if (!_composeMode) lengthInput.readOnly = true;
   }
 }
 
@@ -3680,7 +3687,7 @@ function _composeRecompute() {
     _composeLabels = null;
     _composeLBlock = null;
     codeInput.value = _composeS.digits.join('');
-    lengthInput.value = _composeS.digits.length + 1;
+    lengthInput.value = _composeS.digits.length + 1; _lastAppliedLength = _composeS.digits.length + 1;
     autoResizeCode();
     clearError();
     buildSnake(_composeS.digits, _composeS.closed);
@@ -3713,7 +3720,7 @@ function _composeRecompute() {
   }
 
   codeInput.value = finalDigits.join('');
-  lengthInput.value = finalDigits.length + 1;
+  lengthInput.value = finalDigits.length + 1; _lastAppliedLength = finalDigits.length + 1;
   autoResizeCode();
   clearError();
   buildSnake(finalDigits, false);
@@ -3901,6 +3908,8 @@ function _enterComposeMode() {
   btnC.style.background = 'rgba(180,100,20,0.5)';
   btnC.style.borderColor = 'rgba(255,160,40,0.8)';
   btnC.style.color = '#ffcc66';
+  document.getElementById('btn-zero').disabled = true;
+  lengthInput.readOnly = false;
   _composeMode = true;
 }
 
@@ -3926,6 +3935,8 @@ function _exitComposeMode() {
   btnC.style.background = '';
   btnC.style.borderColor = '';
   btnC.style.color = '';
+  document.getElementById('btn-zero').disabled = false;
+  lengthInput.readOnly = true;
   // Rebuild snake with normal coloring (no l-block highlight)
   var r = parseCode(codeInput.value);
   if (!r.err) buildSnake(r.digits, false);
