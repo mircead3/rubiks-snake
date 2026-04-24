@@ -106,6 +106,7 @@ span.cursor-mark {
   position:absolute; top:20px; left:16px;
   display:flex; flex-direction:column; align-items:flex-start; gap:6px;
   pointer-events:none; user-select:none; width:260px;
+  max-height:calc(100vh - 40px); overflow:hidden;
 }
 #left-panel > * { pointer-events:all; }
 #builtin-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; width:260px; }
@@ -136,13 +137,14 @@ span.cursor-mark {
 #active-figures {
   display:flex; flex-direction:column; gap:5px;
   max-height:50vh; overflow-y:auto; width:260px;
+  flex-shrink:1; min-height:0;
 }
 #active-figures:empty { display:none; }
 #active-figures:not(:empty) { border-top:1px solid rgba(140,140,200,0.2); padding-top:8px; margin-top:4px; }
 #active-figures::-webkit-scrollbar { width:4px; }
 #active-figures::-webkit-scrollbar-thumb { background:rgba(140,140,255,0.3); border-radius:2px; }
 .collection-desc { font-size:10px; color:rgba(180,160,100,0.7); font-style:italic; line-height:1.3; margin-bottom:2px; }
-#my-list-section { width:100%; margin-top:4px; }
+#my-list-section { width:100%; margin-top:4px; flex-shrink:0; }
 #my-list-header {
   display:flex; align-items:center; gap:5px; margin-bottom:4px;
   border-top:1px solid rgba(140,140,200,0.2); padding-top:8px;
@@ -156,6 +158,7 @@ span.cursor-mark {
 #my-list-figures {
   display:flex; flex-direction:column; gap:5px;
   max-height:30vh; overflow-y:auto; width:260px;
+  min-height:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
 }
 #my-list-figures:empty { display:none; }
 #my-list-figures:not(:empty) { margin-bottom:4px; }
@@ -202,7 +205,7 @@ span.cursor-mark {
 .compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
 .compose-s13-btn { margin-left:4px; }
 .compose-s13-btn.s13-active { background:rgba(20,100,180,0.5); border-color:rgba(40,160,255,0.8); color:#66ccff; }
-.compose-s13-btn:disabled { opacity:0.3; cursor:default; }
+.compose-join-btn { margin-top:8px; width:60px; font-size:12px; }
 .compose-entry { margin-top:8px; border-top:1px solid rgba(180,140,60,0.15); padding-top:6px; }
 .compose-entry:first-child { border-top:none; margin-top:0; padding-top:0; }
 .compose-entry-mid { margin-top:2px; padding-top:0; border-top:none; }
@@ -351,10 +354,11 @@ span.cursor-mark {
       <tr><td>?</td><td>This help page</td></tr>
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Edit mode can also be entered by clicking in the code box. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Snake <strong>a</strong> is the base figure; snake <strong>b</strong> is the closed loop to attach. Click any closed figure in a list to select it as snake b. Choose the joining segments using the two selectors. The result is shown live; snake b's segments appear in a distinct color. Each selector change is individually undoable.<br><br>
-        <strong>↔ (flip)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed, which is equivalent to a 180° rotation around the axis normal to the joint surface. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
-        <strong>C</strong> — next to the flip button. Swaps 1↔3 in all joints of snake b (mirror image). Only enabled when snake b is chiral; disabled and has no effect on achiral loops. Can be combined with flip.<br><br>
+        <strong>↔ (reverse)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
+        <strong>C</strong> — next to the reverse button. Swaps 1↔3 in all joints of snake b (mirror image). Can be combined with reverse.<br><br>
+        <strong>Join</strong> — finalizes the composition: the result becomes the new base snake and the right panel resets to accept the next loop.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
-        <strong>Log</strong> — appears in the right panel once at least one loop has been added. Downloads a plain-text record of the full composition: base snake, each added loop with its a/b/flip/C settings, and the result code after each step.</td></tr>
+        <strong>Log</strong> — appears after Join is pressed. Downloads a plain-text record of the full composition: base snake, each added loop with its a/b/reverse/C settings, and the result code after each step.</td></tr>
       <tr><td>Zero</td><td>Replace the current snake with an all-zeros snake of the same length, clear the name, and enter edit mode. Undoable.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
     </table>
@@ -2495,7 +2499,9 @@ function _undoPush() {
       sName: document.getElementById('compose-s-name').textContent,
       labels: _composeLabels ? _composeLabels.slice() : null,
       lBlock: _composeLBlock ? _composeLBlock.slice() : null,
-      lColor: _composeLColor
+      lColor: _composeLColor,
+      snakeColor: _lastSnakeColor,
+      log: _composeLog.map(function(e) { return Object.assign({}, e); })
     };
   }
   _undoStack.push(entry);
@@ -2513,7 +2519,9 @@ function undoCode() {
     _composeLBlock = cs.lBlock || null;
     _composeLColor = (cs.lColor !== undefined) ? cs.lColor : -1;
     if (_composeLColor >= 0) { MAT_L.color.setHex(_composeLColor); _INNER_MAT_L.color.setHex(_composeLColor); }
+    if (cs.snakeColor !== undefined) { _lastSnakeColor = cs.snakeColor; MAT_A.color.setHex(cs.snakeColor); _INNER_MAT_A.color.setHex(cs.snakeColor); }
     document.getElementById('compose-s-name').textContent = cs.sName;
+    _composeLog = cs.log ? cs.log.map(function(e) { return Object.assign({}, e); }) : [];
     _composeRenderStack();
     _composeRecompute();
   } else {
@@ -3225,32 +3233,39 @@ function downloadImage() {
 }
 
 function downloadComposeLog() {
-  if (!_composeS || _composeStack.length === 0) return;
-  var chain = _composeComputeChain();
-  var lines = [];
+  if (!_composeS || (_composeLog.length === 0 && _composeStack.length === 0)) return;
 
-  // Helper: format a code with closing digit in parens, e.g. "12312(3)"
   function fmtCode(digits, cd) {
     return digits.join('') + (cd >= 0 ? '(' + cd + ')' : '');
   }
 
-  // Base snake
-  var baseCD = _composeS.closed ? closingDigit(_composeS.digits) : -1;
-  var baseName = document.getElementById('compose-s-name').textContent || '(unnamed)';
-  var baseSegs = _composeS.digits.length + 1;
-  lines.push('Base:   ' + baseName + '  ' + fmtCode(_composeS.digits, baseCD) + '  (' + baseSegs + ' segments)');
+  var lines = [];
+  var allSteps = _composeLog.concat(
+    _composeStack.length === 1 ? [{
+      baseName: _composeS.name,
+      baseDigits: _composeS.digits.slice(),
+      baseClosed: _composeS.closed,
+      loopName: _composeStack[0].l.name,
+      loopFull: _composeStack[0].l.full.slice(),
+      a: _composeStack[0].a, b: _composeStack[0].b,
+      flip: _composeStack[0].flip, swap13: _composeStack[0].swap13,
+      resultDigits: _composeComputeChain()[0].digits
+    }] : []
+  );
+
+  var first = allSteps[0];
+  var baseCD = first.baseClosed ? closingDigit(first.baseDigits) : -1;
+  lines.push('Base:   ' + first.baseName + '  ' + fmtCode(first.baseDigits, baseCD) + '  (' + (first.baseDigits.length + 1) + ' segments)');
   lines.push('');
 
-  // Each composition step
-  for (var i = 0; i < _composeStack.length; i++) {
-    var e = _composeStack[i];
-    var loopCD = e.l.full[e.l.full.length - 1];
-    var loopCode = fmtCode(e.l.full.slice(0, -1), loopCD);
-    var flags = '  a=' + (e.a + 1) + ' b=' + (e.b + 1) + (e.flip ? ' \u2194' : '') + (e.swap13 ? ' C' : '');
-    lines.push('Step ' + (i + 1) + ': ' + e.l.name + '  ' + loopCode + flags);
-    var resDigits = chain[i].digits;
-    var resCD = isClosed(resDigits) ? closingDigit(resDigits) : -1;
-    lines.push('        \u2192 ' + fmtCode(resDigits, resCD) + '  (' + (resDigits.length + 1) + ' segments)');
+  for (var i = 0; i < allSteps.length; i++) {
+    var step = allSteps[i];
+    var loopCD = step.loopFull[step.loopFull.length - 1];
+    var loopCode = fmtCode(step.loopFull.slice(0, -1), loopCD);
+    var flags = '  a=' + (step.a + 1) + ' b=' + (step.b + 1) + (step.flip ? ' \u2194' : '') + (step.swap13 ? ' C' : '');
+    lines.push('Step ' + (i + 1) + ': ' + step.loopName + '  ' + loopCode + flags);
+    var resCD = isClosed(step.resultDigits) ? closingDigit(step.resultDigits) : -1;
+    lines.push('        \u2192 ' + fmtCode(step.resultDigits, resCD) + '  (' + (step.resultDigits.length + 1) + ' segments)');
     lines.push('');
   }
 
@@ -3468,7 +3483,6 @@ Left_as_Right 12313013211233213013123
 Mountain 01321123103210312332130
 Mountains_Hard 02032312121232323121020
 No_Clue 01233303211233210111230
-Noname 01212321022022123230200
 Ostrich1 00220102202203022000002
 Ostrich2 20233313113133120200002
 Parrot 00001103210101012301302
@@ -3584,8 +3598,9 @@ loop9n 13312102`, 'Open snakes leaving a unit cube between ends; can be composed
 // ─── COMPOSE MODE ─────────────────────────────────────────────────────────────
 
 var _composeMode  = false;
-var _composeS     = null;  // { digits, closed } — the original base snake
-var _composeStack = [];    // [{l:{name,code,full}, a, b, flip, swap13, color}, ...]
+var _composeS     = null;  // { digits, closed, name } — current base snake
+var _composeStack = [];    // [{l:{name,code,full}, a, b, flip, swap13, color}]  — 0 (CA) or 1 (CB) entry
+var _composeLog   = [];    // completed join steps
 
 // Join formula (verified against multiple examples).
 // sDigits: stored digits (length m-1 for closed, m-1 for open if m segs)
@@ -3638,6 +3653,12 @@ function _composeComputeLabels(sDigits, sClosed, lFull, a, b, flip) {
       labels.push(flip ? (b - k + n) % n + 1 : (b + k) % n + 1);
     // s-block: always forward from a
     for (var j = 0; j < m; j++) labels.push((a + j) % m + 1);
+  } else if (a === 0) {
+    // For a=0, _joinLoops places l-block first (pieces 0..n-1), then s[0] (piece n)
+    for (var k = 0; k < n; k++)
+      labels.push(flip ? (b - k + n) % n + 1 : (b + k) % n + 1);
+    labels.push(1);  // s[0] at piece n
+    for (var i = 1; i < m; i++) labels.push(i + 1);
   } else {
     // s prefix: s[0..a-1]
     for (var i = 0; i < a; i++) labels.push(i + 1);
@@ -3659,7 +3680,8 @@ function _composeComputeLBlock(sDigits, sClosed, lFull, a, b) {
   if (sClosed) {
     for (var k = 0; k < n; k++) lb[k] = true;
   } else {
-    for (var k = 0; k < n; k++) lb[a + 1 + k] = true;
+    var lbStart = (a === 0) ? 0 : a + 1;
+    for (var k = 0; k < n; k++) lb[lbStart + k] = true;
   }
   return lb;
 }
@@ -3731,73 +3753,67 @@ function _composeRenderStack() {
   var container = document.getElementById('compose-entries');
   container.innerHTML = '';
 
+  var hasLog = _composeLog.length > 0;
+
+  // Render completed joins (display-only)
+  for (var li = 0; li < _composeLog.length; li++) {
+    var step = _composeLog[li];
+    var ldiv = document.createElement('div');
+    ldiv.className = 'compose-entry compose-entry-mid';
+    ldiv.innerHTML =
+      '<div class="compose-l-info">' +
+        '<span class="compose-l-name">' + step.loopName + '</span>' +
+        '<span style="font-size:10px;color:rgba(180,140,60,0.4);margin-left:4px;">a=' + (step.a+1) + ' b=' + (step.b+1) + (step.flip ? ' ↔' : '') + (step.swap13 ? ' C' : '') + '</span>' +
+      '</div>';
+    container.appendChild(ldiv);
+  }
+
   if (_composeStack.length === 0) {
     document.getElementById('compose-l-prompt').style.display = '';
     document.getElementById('compose-s-name').style.display = 'none';
-    document.getElementById('compose-log-row').style.display = 'none';
+    document.getElementById('compose-log-row').style.display = hasLog ? '' : 'none';
     return;
   }
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'block';
-  document.getElementById('compose-log-row').style.display = '';
+  document.getElementById('compose-log-row').style.display = 'none';
 
-  // Compute a-ranges: entry i's a-range = number of segments before step i.
-  // Use the actual chain computation to get correct counts (avoids closed-s formula ambiguity).
-  var chain = _composeComputeChain();
-  var aRanges = [];
-  for (var i = 0; i < _composeStack.length; i++) {
-    var prevSegs = (i === 0 ? _composeS.digits.length + 1 : chain[i - 1].digits.length + 1);
-    aRanges.push(prevSegs);
-  }
-
-  var isLast = _composeStack.length - 1;
-  for (var i = 0; i < _composeStack.length; i++) {
-    var e = _composeStack[i];
-    var div = document.createElement('div');
-    div.className = 'compose-entry';
-    div.dataset.idx = i;
-
-    if (i < isLast) {
-      // Intermediate entries: name only, no controls
-      div.classList.add('compose-entry-mid');
-      div.innerHTML =
-        '<div class="compose-l-info">' +
-          '<span class="compose-l-name">' + e.l.name + '</span>' +
-          '<span style="font-size:10px;color:rgba(180,140,60,0.4);margin-left:4px;">a=' + (e.a+1) + ' b=' + (e.b+1) + (e.flip ? ' ↔' : '') + (e.swap13 ? ' C' : '') + '</span>' +
-        '</div>';
-    } else {
-      // Last entry: full controls
-      var n = e.l.full.length;
-      var aMax = aRanges[i];
-      var chiral = isChiral(e.l.full.slice(0, -1), e.l.full[e.l.full.length - 1]);
-      var s13Title = chiral ? 'Mirror' : '';
-      var aCSS = '#' + ('000000' + _lastSnakeColor.toString(16)).slice(-6);
-      var bCSS = '#' + ('000000' + e.color.toString(16)).slice(-6);
-      var dot = 'display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:3px;';
-      div.innerHTML =
-        '<div class="compose-a-row compose-input-row">' +
-          '<span style="' + dot + 'background:' + aCSS + '"></span>' +
-          '<button class="compose-step compose-a-dec">\u25c4</button>' +
-          '<input class="compose-num compose-a-input" type="number" min="1" value="' + (e.a + 1) + '">' +
-          '<button class="compose-step compose-a-inc">\u25ba</button>' +
-          '<span class="compose-max compose-a-max">1\u2013' + aMax + '</span>' +
-        '</div>' +
-        '<div class="compose-l-info">' +
-          '<span class="compose-l-name">' + e.l.name + '</span>' +
-          '<button class="compose-l-clear" title="Remove this loop">\u2715</button>' +
-        '</div>' +
-        '<div class="compose-b-row compose-input-row">' +
-          '<span style="' + dot + 'background:' + bCSS + '"></span>' +
-          '<button class="compose-step compose-b-dec">\u25c4</button>' +
-          '<input class="compose-num compose-b-input" type="number" min="1" value="' + (e.b + 1) + '">' +
-          '<button class="compose-step compose-b-inc">\u25ba</button>' +
-          '<span class="compose-max compose-b-max">1\u2013' + n + '</span>' +
-          '<button class="compose-step compose-flip-btn' + (e.flip ? ' flip-active' : '') + '" title="Reverse (rotates 180 degrees)">\u2194</button>' +
-          '<button class="compose-step compose-s13-btn' + (e.swap13 ? ' s13-active' : '') + '" title="' + s13Title + '"' + (chiral ? '' : ' disabled') + '>C</button>' +
-        '</div>';
-    }
-    container.appendChild(div);
-  }
+  // CB: exactly one entry with full controls + Join button
+  var e = _composeStack[0];
+  var aMax = _composeS.digits.length + 1;
+  var n = e.l.full.length;
+  var s13Title = 'Mirror';
+  var aCSS = '#' + ('000000' + _lastSnakeColor.toString(16)).slice(-6);
+  var bCSS = '#' + ('000000' + e.color.toString(16)).slice(-6);
+  var dot = 'display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:3px;';
+  var div = document.createElement('div');
+  div.className = 'compose-entry';
+  div.dataset.idx = '0';
+  div.innerHTML =
+    '<div class="compose-a-row compose-input-row">' +
+      '<span style="' + dot + 'background:' + aCSS + '"></span>' +
+      '<button class="compose-step compose-a-dec">\u25c4</button>' +
+      '<input class="compose-num compose-a-input" type="number" min="1" value="' + (e.a + 1) + '">' +
+      '<button class="compose-step compose-a-inc">\u25ba</button>' +
+      '<span class="compose-max compose-a-max">1\u2013' + aMax + '</span>' +
+    '</div>' +
+    '<div class="compose-l-info">' +
+      '<span class="compose-l-name">' + e.l.name + '</span>' +
+      '<button class="compose-l-clear" title="Remove this loop">\u2715</button>' +
+    '</div>' +
+    '<div class="compose-b-row compose-input-row">' +
+      '<span style="' + dot + 'background:' + bCSS + '"></span>' +
+      '<button class="compose-step compose-b-dec">\u25c4</button>' +
+      '<input class="compose-num compose-b-input" type="number" min="1" value="' + (e.b + 1) + '">' +
+      '<button class="compose-step compose-b-inc">\u25ba</button>' +
+      '<span class="compose-max compose-b-max">1\u2013' + n + '</span>' +
+      '<button class="compose-step compose-flip-btn' + (e.flip ? ' flip-active' : '') + '" title="Reverse">\u2194</button>' +
+      '<button class="compose-step compose-s13-btn' + (e.swap13 ? ' s13-active' : '') + '" title="' + s13Title + '">C</button>' +
+    '</div>' +
+    '<div style="padding-left:2px;">' +
+      '<button class="btn compose-join-btn" title="Finalize composition; result becomes new base snake">Join</button>' +
+    '</div>';
+  container.appendChild(div);
 }
 
 // ── Per-entry setters ──────────────────────────────────────────────────────────
@@ -3860,23 +3876,50 @@ function _composePopEntry() {
   _composeRecompute();
 }
 
+function _composeJoin() {
+  if (_composeStack.length !== 1) return;
+  var e = _composeStack[0];
+  var result = _joinLoops(_composeS.digits, _composeS.closed, e.l.full, e.a, e.b, e.flip, e.swap13);
+
+  _undoPush();
+
+  _composeLog.push({
+    baseName: _composeS.name,
+    baseDigits: _composeS.digits.slice(),
+    baseClosed: _composeS.closed,
+    loopName: e.l.name,
+    loopFull: e.l.full.slice(),
+    a: e.a, b: e.b, flip: e.flip, swap13: e.swap13,
+    resultDigits: result.slice()
+  });
+
+  _composeS = { digits: result, closed: false, name: nameInput.value.trim() || '(composed)' };
+  _composeStack = [];
+  _composeLBlock = null;
+  _composeLColor = -1;
+  _composeLabels = null;
+
+  pickSnakeColor();
+
+  _composeRenderStack();
+  _composeRecompute();
+}
+
 function _composeSelectL(fig) {
+  if (_composeStack.length > 0) return;  // only allowed in CA
   var digits = fig.code.split('').map(Number);
-  if (!isClosed(digits)) return;  // ignore non-closed figures in compose mode
+  if (!isClosed(digits)) return;
   var cd = closingDigit(digits);
   var full = digits.concat([cd]);
 
   _undoPush();
 
-  // Pick a color different from snake color and existing stack entry colors
-  var usedColors = _composeStack.map(function(e) { return e.color; });
-  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor && usedColors.indexOf(c) === -1; });
-  if (!choices.length) choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
+  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
   var color = choices[Math.floor(Math.random() * choices.length)];
 
   _composeStack.push({ l: { name: fig.name, code: fig.code, full: full }, a: 0, b: 0, flip: false, swap13: false, color: color });
 
-  document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
+  document.getElementById('compose-s-name').textContent = _composeS.name;
   _composeRenderStack();
   _composeRecompute();
 }
@@ -3886,11 +3929,12 @@ function _enterComposeMode() {
   var r = parseCode(codeInput.value);
   if (r.err) return;
   var closed = isClosed(r.digits);
-  _composeS = { digits: r.digits, closed: closed };
+  _composeS = { digits: r.digits, closed: closed, name: document.getElementById('name-input').value || '(unnamed)' };
   _composeStack = [];
+  _composeLog = [];
 
   document.getElementById('compose-panel').style.display = 'block';
-  document.getElementById('compose-s-name').textContent = document.getElementById('name-input').value || '(unnamed)';
+  document.getElementById('compose-s-name').textContent = _composeS.name;
   _composeRenderStack();  // shows prompt, hides s-name
 
   if (!showNumbers) {
@@ -3917,6 +3961,7 @@ function _exitComposeMode() {
   _composeMode = false;
   _composeS = null;
   _composeStack = [];
+  _composeLog = [];
   _composeLabels = null;
   _composeLBlock = null;
   _composeLColor = -1;
@@ -3968,6 +4013,8 @@ document.getElementById('compose-entries').addEventListener('click', function(e)
     _composeSetEntryFlip(idx, !e2.flip);
   } else if (e.target.classList.contains('compose-s13-btn') && !e.target.disabled) {
     _composeSetEntrySwap13(idx, !e2.swap13);
+  } else if (e.target.classList.contains('compose-join-btn')) {
+    _composeJoin();
   }
 });
 
