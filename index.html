@@ -3666,7 +3666,7 @@ function _composeComputeLabels(sDigits, sClosed, lFull, a, b, flip) {
     labels.push(a + 1);
     // l-block: forward or backward from b depending on flip
     for (var k = 0; k < n; k++)
-      labels.push(flip ? (b - k + n) % n + 1 : (b + k) % n + 1);
+      labels.push(flip ? (b + 1 - k + n) % n + 1 : (b + 1 + k) % n + 1);
     // s suffix: always forward
     for (var i = a + 1; i < m; i++) labels.push(i + 1);
   }
