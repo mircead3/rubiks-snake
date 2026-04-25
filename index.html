@@ -3847,10 +3847,13 @@ function _composeSetEntryFlip(idx, flip) {
   if (flip === e.flip) return;
   _undoPush();
   e.flip = flip;
+  var n = e.l.full.length;
+  e.b = (n + 2 - e.b) % n;
   var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
   if (entryEl) {
     var btn = entryEl.querySelector('.compose-flip-btn');
     if (flip) btn.classList.add('flip-active'); else btn.classList.remove('flip-active');
+    entryEl.querySelector('.compose-b-input').value = e.b + 1;
   }
   _composeRecompute();
 }
