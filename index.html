@@ -652,6 +652,7 @@ var MAT_L = new THREE.MeshPhongMaterial({ color: 0xE07B00, shininess: 120, specu
 var _INNER_MAT_A = new THREE.MeshBasicMaterial({ color: 0xD42B2B }); // colored – for insets on white segments
 var _INNER_MAT_B = new THREE.MeshBasicMaterial({ color: 0xF0F0F0 }); // white  – for insets on colored segments
 var _INNER_MAT_L = new THREE.MeshBasicMaterial({ color: 0xE07B00 }); // l-block color – for insets on white l-block segments
+function _setLColor(hex) { MAT_L.color.setHex(hex); _INNER_MAT_L.color.setHex(hex); }
 
 // ─── CHAIN BUILDING ────────────────────────────────────────────────────────────
 // Notation: 0=straight, 1=90°, 2=180°(fold), 3=270°
@@ -1163,8 +1164,7 @@ function _pickComposeLColor() {
   var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor && c !== _composeLColor; });
   if (!choices.length) choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
   _composeLColor = choices[Math.floor(Math.random() * choices.length)];
-  MAT_L.color.setHex(_composeLColor);
-  _INNER_MAT_L.color.setHex(_composeLColor);
+  _setLColor(_composeLColor);
 }
 
 // Texture cache: label (integer) → CanvasTexture (white text on transparent bg).
@@ -1466,7 +1466,7 @@ function undoCode() {
     _composeLabels = cs.labels;
     _composeLBlock = cs.lBlock || null;
     _composeLColor = (cs.lColor !== undefined) ? cs.lColor : -1;
-    if (_composeLColor >= 0) { MAT_L.color.setHex(_composeLColor); _INNER_MAT_L.color.setHex(_composeLColor); }
+    if (_composeLColor >= 0) { _setLColor(_composeLColor); }
     if (cs.snakeColor !== undefined) { _lastSnakeColor = cs.snakeColor; MAT_A.color.setHex(cs.snakeColor); _INNER_MAT_A.color.setHex(cs.snakeColor); }
     document.getElementById('compose-s-name').textContent = cs.sName;
     _composeLog = cs.log ? cs.log.map(function(e) { return Object.assign({}, e); }) : [];
@@ -2651,16 +2651,14 @@ function _composeRecompute() {
                                            e0.l.full, e0.a, e0.b, e0.flip);
     _composeLBlock = _composeComputeLBlock(_composeS.digits, _composeS.closed,
                                            e0.l.full, e0.a, e0.b);
-    MAT_L.color.setHex(e0.color);
-    _INNER_MAT_L.color.setHex(e0.color);
+    _setLColor(e0.color);
     _composeLColor = e0.color;
   } else {
     // Multi-entry: use intermediate result as s for the last step's labels/lBlock.
     // This labels s-segments 1..m and l-segments 1..n, so the user can identify
     // which segments of the final snake belong to snake a (the intermediate result).
     var lastE = _composeStack[_composeStack.length - 1];
-    MAT_L.color.setHex(lastE.color);
-    _INNER_MAT_L.color.setHex(lastE.color);
+    _setLColor(lastE.color);
     _composeLColor = lastE.color;
     var prevD = chain[chain.length - 2].digits;
     _composeLabels = _composeComputeLabels(prevD, false, lastE.l.full, lastE.a, lastE.b, lastE.flip);
