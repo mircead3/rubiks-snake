@@ -270,7 +270,7 @@ span.cursor-mark {
   </div>
   <div id="view-row">
     <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
-    <button class="btn" id="btn-copy" title="Copy code to clipboard" onclick="navigator.clipboard.writeText(document.getElementById('code-input').value)">Copy</button>
+    <button class="btn" id="btn-copy" title="Copy code to clipboard">Copy</button>
     <button class="btn" id="btn-image" title="Download image of current view" onclick="downloadImage()">Image</button>
     <span class="row-spacer"></span>
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
@@ -1718,13 +1718,13 @@ function loadBuiltinFile(name, text, desc) {
 
 function parseFileLine(line) {
   line = line.trim();
-  if (!line || line[0] === '#') return null;           // blank or comment
-  var m = line.match(/^(\S+)\s+([0-3]+)/);             // name  <whitespace>  digits  (rest ignored)
-  if (!m) return null;                                 // ignore lines not in this format
-  return { name: m[1], code: m[2] };
+  if (!line || line[0] === '#') return null;
+  var m = line.match(/^(\S+)\s+([0-3]+)(?:\(([0-3])\))?/);
+  if (!m) return null;
+  return { name: m[1], code: m[2], cd: m[3] !== undefined ? parseInt(m[3], 10) : -1 };
 }
 
-function loadFigure(name, code) {
+function loadFigure(name, code, expectedCD) {
   _activeFigureName = name;
   nameInput.value = name;
   document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
@@ -1747,7 +1747,15 @@ function loadFigure(name, code) {
   codeInput.value = code;
   autoResizeCode();
   clearError();
-  buildSnake(code.split('').map(Number), true);
+  var digits = code.split('').map(Number);
+if (expectedCD !== undefined && expectedCD >= 0) {
+    if (!isClosed(digits)) {
+      setError(name + ': closing digit present but snake is not closed.');
+    } else if (closingDigit(digits) !== expectedCD) {
+      setError(name + ': closing digit mismatch (file has ' + expectedCD + ', computed ' + closingDigit(digits) + ').');
+    }
+  }
+  buildSnake(digits, true);
   if (rollMode) applyDisplay();
 }
 
@@ -2017,7 +2025,7 @@ function _createFigureBtn(fig, onDelete) {
   btn.onclick = function(e) {
     if (e.target.classList.contains('fig-del')) { onDelete(); return; }
     if (_composeMode) { _composeSelectL(fig); return; }
-    loadFigure(fig.name, fig.code);
+    loadFigure(fig.name, fig.code, fig.cd);
   };
   btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
   btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
@@ -2157,6 +2165,16 @@ function undoDelete() {
 }
 
 // ─── SAVE / DOWNLOAD ───────────────────────────────────────────────────────────
+document.getElementById('btn-copy').addEventListener('click', function() {
+  var r = parseCode(codeInput.value);
+  var text = codeInput.value;
+  if (!r.err) {
+    var cd = closingDigit(r.digits);
+    if (cd >= 0) text += '(' + cd + ')';
+  }
+  navigator.clipboard.writeText(text);
+});
+
 function downloadImage() {
   renderer.render(scene, camera);
   var url = renderer.domElement.toDataURL('image/png');
