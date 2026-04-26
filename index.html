@@ -366,7 +366,7 @@ span.cursor-mark {
         <strong>C</strong> — next to the reverse button. Swaps 1↔3 in all joints of snake b (mirror image). Can be combined with reverse.<br><br>
         <strong>Join</strong> — finalizes the composition: the result becomes the new base snake and the right panel resets to accept the next loop.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
-        <strong>Log</strong> — appears after Join is pressed. Downloads a plain-text record of the full composition: base snake, each added loop with its a/b/reverse/C settings, and the result code after each step.</td></tr>
+        <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
       <tr><td>Zero</td><td>Replace the current snake with an all-zeros snake of the same length, clear the name, and enter edit mode. Undoable.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
     </table>
@@ -431,7 +431,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '4850d0c';
+var _VERSION = '78209d4';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
