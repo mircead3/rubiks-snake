@@ -204,7 +204,7 @@ span.cursor-mark {
 .compose-flip-btn { margin-left:4px; }
 .compose-flip-btn.flip-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
 .compose-s13-btn { margin-left:4px; }
-.compose-s13-btn.s13-active { background:rgba(20,100,180,0.5); border-color:rgba(40,160,255,0.8); color:#66ccff; }
+.compose-s13-btn.s13-active { background:rgba(180,100,20,0.5); border-color:rgba(255,160,40,0.8); color:#ffcc66; }
 .compose-join-btn { margin-top:8px; width:60px; font-size:12px; }
 .compose-entry { margin-top:8px; border-top:1px solid rgba(180,140,60,0.15); padding-top:6px; }
 .compose-entry:first-child { border-top:none; margin-top:0; padding-top:0; }
@@ -293,8 +293,16 @@ span.cursor-mark {
     </div>
     <div id="compose-s-name" style="display:none"></div>
     <div id="compose-entries"></div>
-    <div id="compose-log-row" style="display:none; margin-top:8px; padding-left:2px;">
-      <button class="btn" onclick="downloadComposeLog()" title="Download a text record of this composition">Log</button>
+    <div id="compose-exit-row" style="margin-top:8px; padding-left:2px;">
+      <button class="btn" id="compose-exit-btn" title="Exit compose mode">Exit</button>
+    </div>
+    <div id="compose-log-prompt" style="display:none; margin-top:8px;">
+      <div style="font-size:11px;color:#aaa;margin-bottom:4px;">Download log?</div>
+      <input type="text" id="compose-log-name" style="width:100%;box-sizing:border-box;margin-bottom:4px;background:#1a1a2e;border:1px solid #444;color:#ddd;padding:3px 6px;border-radius:4px;font-size:12px;">
+      <div style="display:flex;gap:4px;">
+        <button class="btn" id="compose-log-download-btn" style="flex:1;">Download</button>
+        <button class="btn" id="compose-log-skip-btn" style="flex:1;">Skip</button>
+      </div>
     </div>
     <div class="panel-divider"></div>
   </div>
@@ -2158,26 +2166,15 @@ function downloadImage() {
   a.click();
 }
 
-function downloadComposeLog() {
-  if (!_composeS || (_composeLog.length === 0 && _composeStack.length === 0)) return;
+function downloadComposeLog(name) {
+  if (!_composeS || _composeLog.length === 0) return;
 
   function fmtCode(digits, cd) {
     return digits.join('') + (cd >= 0 ? '(' + cd + ')' : '');
   }
 
   var lines = [];
-  var allSteps = _composeLog.concat(
-    _composeStack.length === 1 ? [{
-      baseName: _composeS.name,
-      baseDigits: _composeS.digits.slice(),
-      baseClosed: _composeS.closed,
-      loopName: _composeStack[0].l.name,
-      loopFull: _composeStack[0].l.full.slice(),
-      a: _composeStack[0].a, b: _composeStack[0].b,
-      flip: _composeStack[0].flip, swap13: _composeStack[0].swap13,
-      resultDigits: _composeComputeChain()[0].digits
-    }] : []
-  );
+  var allSteps = _composeLog;
 
   var first = allSteps[0];
   var baseCD = first.baseClosed ? closingDigit(first.baseDigits) : -1;
@@ -2197,7 +2194,7 @@ function downloadComposeLog() {
 
   var text = lines.join('\n');
   var a = document.createElement('a');
-  a.download = (nameInput.value.trim() || 'composition') + '_log.txt';
+  a.download = (name || nameInput.value.trim() || 'composition') + '_log.txt';
   a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
   a.click();
 }
@@ -2676,8 +2673,6 @@ function _composeRenderStack() {
   var container = document.getElementById('compose-entries');
   container.innerHTML = '';
 
-  var hasLog = _composeLog.length > 0;
-
   // Render completed joins (display-only)
   for (var li = 0; li < _composeLog.length; li++) {
     var step = _composeLog[li];
@@ -2694,12 +2689,12 @@ function _composeRenderStack() {
   if (_composeStack.length === 0) {
     document.getElementById('compose-l-prompt').style.display = '';
     document.getElementById('compose-s-name').style.display = 'none';
-    document.getElementById('compose-log-row').style.display = hasLog ? '' : 'none';
+    document.getElementById('compose-exit-row').style.display = '';
     return;
   }
   document.getElementById('compose-l-prompt').style.display = 'none';
   document.getElementById('compose-s-name').style.display = 'block';
-  document.getElementById('compose-log-row').style.display = 'none';
+  document.getElementById('compose-exit-row').style.display = 'none';
 
   // CB: exactly one entry with full controls + Join button
   var e = _composeStack[0];
@@ -2901,7 +2896,8 @@ function _exitComposeMode() {
   }
   document.getElementById('compose-panel').style.display = 'none';
   document.getElementById('compose-entries').innerHTML = '';
-  document.getElementById('compose-log-row').style.display = 'none';
+  document.getElementById('compose-exit-row').style.display = '';
+  document.getElementById('compose-log-prompt').style.display = 'none';
   var btnC = document.getElementById('btn-compose');
   btnC.style.opacity = '0.5';
   btnC.style.background = '';
@@ -2917,6 +2913,22 @@ function _exitComposeMode() {
 document.getElementById('btn-compose').addEventListener('click', function() {
   if (_composeMode) { _exitComposeMode(); }
   else { _enterComposeMode(); }
+});
+
+document.getElementById('compose-exit-btn').addEventListener('click', function() {
+  if (_composeLog.length === 0) { _exitComposeMode(); return; }
+  document.getElementById('compose-exit-row').style.display = 'none';
+  document.getElementById('compose-log-prompt').style.display = '';
+  document.getElementById('compose-log-name').value = nameInput.value.trim() || 'composition';
+});
+
+document.getElementById('compose-log-download-btn').addEventListener('click', function() {
+  downloadComposeLog(document.getElementById('compose-log-name').value.trim() || 'composition');
+  _exitComposeMode();
+});
+
+document.getElementById('compose-log-skip-btn').addEventListener('click', function() {
+  _exitComposeMode();
 });
 
 // Event delegation for all dynamic compose-entry controls
