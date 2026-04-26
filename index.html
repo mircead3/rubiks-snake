@@ -425,6 +425,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
 
+
 var camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(0, 0, 14);
 camera.lookAt(0, 0, 0);
@@ -1038,7 +1039,7 @@ function buildSeamLines(transforms, lBlock) {
                 else if (lBlock && lBlock[i]) { pos = posL; nrm = normL; }
                 else { pos = posB; nrm = normB; }
                 pos.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
-                nrm.push(ni.x, ni.y, ni.z);
+nrm.push(ni.x, ni.y, ni.z);
               }
             }
           }
@@ -1054,12 +1055,14 @@ function buildSeamQuads(positions, normals, hw) {
   var verts = [];
   var d=new THREE.Vector3(), w=new THREE.Vector3(), nv=new THREE.Vector3();
   var P0=new THREE.Vector3(), P1=new THREE.Vector3();
-  for (var k=0; k<normals.length; k++) {
+  for (var k=0; k<normals.length/3; k++) {
     var b=k*6;
     P0.set(positions[b],positions[b+1],positions[b+2]);
     P1.set(positions[b+3],positions[b+4],positions[b+5]);
     nv.set(normals[k*3],normals[k*3+1],normals[k*3+2]);
-    d.subVectors(P1,P0).normalize();
+    d.subVectors(P1,P0);
+    if (d.lengthSq() < 1e-12) continue;
+    d.normalize();
     w.crossVectors(d,nv).multiplyScalar(hw);
     var ax=P0.x-w.x,ay=P0.y-w.y,az=P0.z-w.z;
     var bx=P0.x+w.x,by=P0.y+w.y,bz=P0.z+w.z;
@@ -2965,19 +2968,22 @@ function _addFetchTab(fileName, desc) {
     }
   });
   document.getElementById('builtin-tabs').appendChild(tab);
-  fetch('./' + fileName)
-    .then(function(r) { if (r.ok) return r.text(); throw new Error(); })
-    .then(function(text) {
-      var lines = text.split(/\r?\n/);
-      var figures = [];
-      for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
-      tab._figures = figures;
-      tab._loaded = true;
-      tab.style.opacity = '';
-      tab.style.fontStyle = '';
-      tab.title = fileName;
-    })
-    .catch(function() { tab.parentNode && tab.parentNode.removeChild(tab); });
+  if (window.location.protocol === 'file:') return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', './' + fileName);
+  xhr.onload = function() {
+    if (xhr.status !== 200 && xhr.status !== 0) { tab.parentNode && tab.parentNode.removeChild(tab); return; }
+    var lines = xhr.responseText.split(/\r?\n/);
+    var figures = [];
+    for (var i = 0; i < lines.length; i++) { var fig = parseFileLine(lines[i]); if (fig) figures.push(fig); }
+    tab._figures = figures;
+    tab._loaded = true;
+    tab.style.opacity = '';
+    tab.style.fontStyle = '';
+    tab.title = fileName;
+  };
+  xhr.onerror = function() { tab.parentNode && tab.parentNode.removeChild(tab); };
+  xhr.send();
 }
 _addFetchTab('simple_loops_14.txt', 'All primitive closed loops, 14 segments (335 figures)');
 _addFetchTab('simple_loops_16.txt', 'All primitive closed loops, 16 segments (2842 figures)');
