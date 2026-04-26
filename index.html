@@ -2610,7 +2610,7 @@ function _composeComputeChain() {
     var res = _joinLoops(sDigits, sClosed, e.l.full, e.a, e.b, e.flip, e.swap13);
     results.push({ digits: res });
     sDigits = res;
-    sClosed = false;  // result of any join is always open
+    sClosed = _composeS.closed;  // result is closed iff the original base snake is closed
   }
   return results;
 }
@@ -2647,8 +2647,8 @@ function _composeRecompute() {
     _setLColor(lastE.color);
     _composeLColor = lastE.color;
     var prevD = chain[chain.length - 2].digits;
-    _composeLabels = _composeComputeLabels(prevD, false, lastE.l.full, lastE.a, lastE.b, lastE.flip);
-    _composeLBlock = _composeComputeLBlock(prevD, false, lastE.l.full, lastE.a, lastE.b);
+    _composeLabels = _composeComputeLabels(prevD, _composeS.closed, lastE.l.full, lastE.a, lastE.b, lastE.flip);
+    _composeLBlock = _composeComputeLBlock(prevD, _composeS.closed, lastE.l.full, lastE.a, lastE.b);
   }
 
   codeInput.value = finalDigits.join('');
