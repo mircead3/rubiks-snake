@@ -1995,46 +1995,49 @@ function _updateDownload() {
   document.getElementById('btn-download').disabled = _myListFigures.length === 0;
 }
 
+function _createFigureBtn(fig, onDelete) {
+  var btn = document.createElement('button');
+  btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
+  btn.dataset.name = fig.name;
+  var img = document.createElement('img');
+  img.className = 'fig-thumb';
+  if (_thumbCache[fig.code]) { img.src = _thumbCache[fig.code]; }
+  else { _thumbQueue.push({ code: fig.code, imgEl: img }); }
+  var nameSpan = document.createElement('span');
+  nameSpan.className = 'fig-name';
+  nameSpan.textContent = fig.name;
+  var delSpan = document.createElement('span');
+  delSpan.className = 'fig-del';
+  delSpan.title = 'Remove from list';
+  delSpan.textContent = '\xd7';
+  btn.appendChild(img);
+  btn.appendChild(nameSpan);
+  btn.appendChild(delSpan);
+  btn.onclick = function(e) {
+    if (e.target.classList.contains('fig-del')) { onDelete(); return; }
+    if (_composeMode) { _composeSelectL(fig); return; }
+    loadFigure(fig.name, fig.code);
+  };
+  btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
+  btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
+  return btn;
+}
+
 function _renderMyList() {
   var af = document.getElementById('my-list-figures');
   af.innerHTML = '';
   for (var i = 0; i < _myListFigures.length; i++) {
     (function(fig) {
-      var btn = document.createElement('button');
-      btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
-      btn.dataset.name = fig.name;
-      var img = document.createElement('img');
-      img.className = 'fig-thumb';
-      if (_thumbCache[fig.code]) { img.src = _thumbCache[fig.code]; }
-      else { _thumbQueue.push({ code: fig.code, imgEl: img }); }
-      var nameSpan = document.createElement('span');
-      nameSpan.className = 'fig-name';
-      nameSpan.textContent = fig.name;
-      var delSpan = document.createElement('span');
-      delSpan.className = 'fig-del';
-      delSpan.title = 'Remove from list';
-      delSpan.textContent = '\xd7';
-      btn.appendChild(img);
-      btn.appendChild(nameSpan);
-      btn.appendChild(delSpan);
-      btn.onclick = function(e) {
-        if (e.target.classList.contains('fig-del')) {
-          var idx = _myListFigures.indexOf(fig);
-          if (idx !== -1) {
-            _deletedFigure = { fig: fig, index: idx, source: 'my' };
-            _myListFigures.splice(idx, 1);
-            _renderMyList();
-            _updateDownload();
-            _showDeleteToast(fig.name);
-          }
-          return;
+      af.appendChild(_createFigureBtn(fig, function() {
+        var idx = _myListFigures.indexOf(fig);
+        if (idx !== -1) {
+          _deletedFigure = { fig: fig, index: idx, source: 'my' };
+          _myListFigures.splice(idx, 1);
+          _renderMyList();
+          _updateDownload();
+          _showDeleteToast(fig.name);
         }
-        if (_composeMode) { _composeSelectL(fig); return; }
-        loadFigure(fig.name, fig.code);
-      };
-      btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
-      btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
-      af.appendChild(btn);
+      }));
     })(_myListFigures[i]);
   }
   _updateDownload();
@@ -2056,40 +2059,15 @@ function _showFileTab(tab, figures) {
   }
   for (var i = 0; i < figures.length; i++) {
     (function(fig) {
-      var btn = document.createElement('button');
-      btn.className = 'file-btn' + (fig.name === _activeFigureName ? ' active' : '');
-      btn.dataset.name = fig.name;
-      var img = document.createElement('img');
-      img.className = 'fig-thumb';
-      if (_thumbCache[fig.code]) { img.src = _thumbCache[fig.code]; }
-      else { _thumbQueue.push({ code: fig.code, imgEl: img }); }
-      var nameSpan = document.createElement('span');
-      nameSpan.className = 'fig-name';
-      nameSpan.textContent = fig.name;
-      var delSpan = document.createElement('span');
-      delSpan.className = 'fig-del';
-      delSpan.title = 'Remove from list';
-      delSpan.textContent = '\xd7';
-      btn.appendChild(img);
-      btn.appendChild(nameSpan);
-      btn.appendChild(delSpan);
-      btn.onclick = function(e) {
-        if (e.target.classList.contains('fig-del')) {
-          var idx = tab._figures.indexOf(fig);
-          if (idx !== -1) {
-            _deletedFigure = { fig: fig, index: idx, source: 'tab', tab: tab };
-            tab._figures.splice(idx, 1);
-            _showFileTab(tab, tab._figures);
-            _showDeleteToast(fig.name);
-          }
-          return;
+      af.appendChild(_createFigureBtn(fig, function() {
+        var idx = tab._figures.indexOf(fig);
+        if (idx !== -1) {
+          _deletedFigure = { fig: fig, index: idx, source: 'tab', tab: tab };
+          tab._figures.splice(idx, 1);
+          _showFileTab(tab, tab._figures);
+          _showDeleteToast(fig.name);
         }
-        if (_composeMode) { _composeSelectL(fig); return; }
-        loadFigure(fig.name, fig.code);
-      };
-      btn.addEventListener('mouseenter', function() { if (!_keyboardNavActive) _setHoveredFigureBtn(btn); });
-      btn.addEventListener('mouseleave', function() { if (hoveredFigureBtn === btn) { btn.classList.remove('kb-focus'); hoveredFigureBtn = null; } });
-      af.appendChild(btn);
+      }));
     })(figures[i]);
   }
 }
