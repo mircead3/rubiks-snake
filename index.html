@@ -1573,10 +1573,12 @@ function parseCode(str) {
 
 var rollMode = false;
 
+function padCode(raw, expected) { while (raw.length < expected) raw += '0'; return raw; }
+
 function applyDisplay(cursorOverride) {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
-  while (raw.length < expected) raw += '0';
+  raw = padCode(raw, expected);
   var cursor = cursorOverride !== undefined ? cursorOverride : codeInput.selectionStart;
   var displayRaw = raw.slice(0, cursor) + '0'.repeat(raw.length - cursor);
   var r = parseCode(displayRaw);
@@ -1599,7 +1601,7 @@ function applyDisplay(cursorOverride) {
 function applyCode() {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
-  while (raw.length < expected) raw += '0';
+  raw = padCode(raw, expected);
   var cursor = codeInput.selectionStart;
   codeInput.value = raw;
   codeInput.selectionStart = codeInput.selectionEnd = Math.min(cursor, raw.length);
@@ -1961,7 +1963,7 @@ function _startFoldAnim(dir) {
   // Ensure textarea value is padded so cursor can reach the end
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
-  while (raw.length < expected) raw += '0';
+  raw = padCode(raw, expected);
   if (codeInput.value !== raw) { var c = codeInput.selectionStart; codeInput.value = raw; codeInput.selectionStart = codeInput.selectionEnd = Math.min(c, raw.length); }
   if (!wasInEditMode) { codeInput.selectionStart = codeInput.selectionEnd = raw.length; }
   codeInput.focus();
@@ -2542,7 +2544,6 @@ function _joinLoops(sDigits, sClosed, lFull, a, b, flip, swap13) {
   // Swap13: apply 1↔3 mirror to each digit.
   var k = flip ? lFull.slice().reverse() : lFull.slice();
   if (swap13) k = k.map(function(d) { return _SWAP13[d]; });
-  var bEff = b;
   // For closed s, include the closing digit so sj cycles with period m (not m-1).
   var sJoints = sClosed ? j.concat([closingDigit(j)]) : j;
   var sM = sJoints.length;
@@ -2550,17 +2551,17 @@ function _joinLoops(sDigits, sClosed, lFull, a, b, flip, swap13) {
   function lj(i) { return k[((i % n) + n) % n]; }
   var res = [];
   if (sClosed) {
-    res.push((lj(bEff - 1) + 2) % 4);
-    for (var i = 0; i < n - 2; i++) res.push(lj(bEff + i));
-    res.push((lj(bEff - 2) + 2) % 4);
+    res.push((lj(b - 1) + 2) % 4);
+    for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
+    res.push((lj(b - 2) + 2) % 4);
     res.push((sj(a) + 2) % 4);
     for (var i = 0; i < j.length - 1; i++) res.push(sj(a + 1 + i));
   } else {
     for (var i = 0; i < a - 1; i++) res.push(j[i]);
     if (a > 0) res.push((j[a - 1] + 2) % 4);
-    res.push((lj(bEff - 1) + 2) % 4);
-    for (var i = 0; i < n - 2; i++) res.push(lj(bEff + i));
-    res.push((lj(bEff - 2) + 2) % 4);
+    res.push((lj(b - 1) + 2) % 4);
+    for (var i = 0; i < n - 2; i++) res.push(lj(b + i));
+    res.push((lj(b - 2) + 2) % 4);
     if (a < j.length) {
       res.push((j[a] + 2) % 4);
       for (var i = 0; i < j.length - 1 - a; i++) res.push(j[a + 1 + i]);
@@ -2741,6 +2742,7 @@ function _composeRenderStack() {
 }
 
 // ── Per-entry setters ──────────────────────────────────────────────────────────
+function _composeEntryEl(idx) { return document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]'); }
 function _composeSetEntryA(idx, val) {
   var e = _composeStack[idx];
   var prevSegs = (idx === 0 ? _composeS.digits.length + 1 : _composeComputeChain()[idx - 1].digits.length + 1);
@@ -2749,7 +2751,7 @@ function _composeSetEntryA(idx, val) {
   _undoPush();
   e.a = newA;
   // Update just the a input in the rendered entry
-  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  var entryEl = _composeEntryEl(idx);
   if (entryEl) entryEl.querySelector('.compose-a-input').value = newA + 1;
   _composeRecompute();
 }
@@ -2761,7 +2763,7 @@ function _composeSetEntryB(idx, val) {
   if (newB === e.b) return;
   _undoPush();
   e.b = newB;
-  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  var entryEl = _composeEntryEl(idx);
   if (entryEl) entryEl.querySelector('.compose-b-input').value = newB + 1;
   _composeRecompute();
 }
@@ -2773,7 +2775,7 @@ function _composeSetEntryFlip(idx, flip) {
   e.flip = flip;
   var n = e.l.full.length;
   e.b = (n + 2 - e.b) % n;
-  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  var entryEl = _composeEntryEl(idx);
   if (entryEl) {
     var btn = entryEl.querySelector('.compose-flip-btn');
     if (flip) btn.classList.add('flip-active'); else btn.classList.remove('flip-active');
@@ -2787,7 +2789,7 @@ function _composeSetEntrySwap13(idx, val) {
   if (val === e.swap13) return;
   _undoPush();
   e.swap13 = val;
-  var entryEl = document.querySelector('#compose-entries .compose-entry[data-idx="' + idx + '"]');
+  var entryEl = _composeEntryEl(idx);
   if (entryEl) {
     var btn = entryEl.querySelector('.compose-s13-btn');
     if (val) btn.classList.add('s13-active'); else btn.classList.remove('s13-active');
