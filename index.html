@@ -394,6 +394,7 @@ span.cursor-mark {
     <code># My figures</code><br>
     <code>Ball 11331311313311331311313</code><br>
     <code>Straight 00000000000000000000000</code>
+    <p style="margin-top:18px;color:#556;font-size:11px;">Version: <span id="help-version"></span></p>
   </div>
 </div>
 
@@ -421,6 +422,8 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   e.preventDefault();
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
+
+var _VERSION = '4850d0c';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -2995,6 +2998,7 @@ function _addFetchTab(fileName, desc) {
 _addFetchTab('simple_loops_14.txt', 'All primitive closed loops, 14 segments (335 figures)');
 _addFetchTab('simple_loops_16.txt', 'All primitive closed loops, 16 segments (2842 figures)');
 autoResizeCode();
+document.getElementById('help-version').textContent = _VERSION;
 loadFigure('Ball', '13113311313313113311313');
 requestAnimationFrame(animate);
 </script>
