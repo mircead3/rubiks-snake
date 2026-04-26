@@ -2087,9 +2087,6 @@ function addFileEntry(name, figures, containerId, isBuiltin, desc) {
 document.getElementById('file-input').addEventListener('change', function(e) {
   for (var fi = 0; fi < e.target.files.length; fi++) {
     (function(file) {
-      if (_loadedFileNames.indexOf(file.name) !== -1) {
-        setError(file.name + ' already loaded.'); return;
-      }
       var reader = new FileReader();
       reader.onload = function(ev) {
         clearError();
@@ -2099,8 +2096,18 @@ document.getElementById('file-input').addEventListener('change', function(e) {
           var fig = parseFileLine(lines[i]); if (fig) figures.push(fig);
         }
         if (figures.length === 0) { setError('No valid figures in ' + file.name); return; }
-        _loadedFileNames.push(file.name);
-        addFileEntry(file.name, figures);
+        // If already loaded, refresh the existing tab's figures
+        var existingTab = null;
+        document.querySelectorAll('#user-tabs .file-tab').forEach(function(t) {
+          if (t._fileName === file.name) existingTab = t;
+        });
+        if (existingTab) {
+          existingTab._figures = figures;
+          if (existingTab.classList.contains('active')) _showFileTab(existingTab, figures);
+        } else {
+          _loadedFileNames.push(file.name);
+          addFileEntry(file.name, figures);
+        }
       };
       reader.readAsText(file);
     })(e.target.files[fi]);
