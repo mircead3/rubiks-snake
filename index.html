@@ -2173,28 +2173,29 @@ function downloadComposeLog(name) {
     return digits.join('') + (cd >= 0 ? '(' + cd + ')' : '');
   }
 
-  var lines = [];
-  var allSteps = _composeLog;
-
-  var first = allSteps[0];
+  var slug = (name || 'composition').replace(/\s+/g, '_');
+  var first = _composeLog[0];
   var baseCD = first.baseClosed ? closingDigit(first.baseDigits) : -1;
-  lines.push('Base:   ' + first.baseName + '  ' + fmtCode(first.baseDigits, baseCD) + '  (' + (first.baseDigits.length + 1) + ' segments)');
-  lines.push('');
+  var lines = [];
 
-  for (var i = 0; i < allSteps.length; i++) {
-    var step = allSteps[i];
+  lines.push('# Composition: ' + name);
+  lines.push('# Base: ' + first.baseName + '  (' + (first.baseDigits.length + 1) + ' segments)');
+  lines.push(slug + '_0 ' + fmtCode(first.baseDigits, baseCD));
+
+  for (var i = 0; i < _composeLog.length; i++) {
+    var step = _composeLog[i];
     var loopCD = step.loopFull[step.loopFull.length - 1];
     var loopCode = fmtCode(step.loopFull.slice(0, -1), loopCD);
-    var flags = '  a=' + (step.a + 1) + ' b=' + (step.b + 1) + (step.flip ? ' \u2194' : '') + (step.swap13 ? ' C' : '');
-    lines.push('Step ' + (i + 1) + ': ' + step.loopName + '  ' + loopCode + flags);
+    var flags = 'a=' + (step.a + 1) + ' b=' + (step.b + 1) + (step.flip ? ' \u2194' : '') + (step.swap13 ? ' C' : '');
     var resCD = isClosed(step.resultDigits) ? closingDigit(step.resultDigits) : -1;
-    lines.push('        \u2192 ' + fmtCode(step.resultDigits, resCD) + '  (' + (step.resultDigits.length + 1) + ' segments)');
-    lines.push('');
+    lines.push('#');
+    lines.push('# Step ' + (i + 1) + ': ' + step.loopName + '  ' + loopCode + '  ' + flags);
+    lines.push(slug + '_' + (i + 1) + ' ' + fmtCode(step.resultDigits, resCD));
   }
 
-  var text = lines.join('\n');
+  var text = lines.join('\n') + '\n';
   var a = document.createElement('a');
-  a.download = (name || nameInput.value.trim() || 'composition') + '_log.txt';
+  a.download = slug + '_log.txt';
   a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
   a.click();
 }
@@ -2681,7 +2682,7 @@ function _composeRenderStack() {
     ldiv.innerHTML =
       '<div class="compose-l-info">' +
         '<span class="compose-l-name">' + step.loopName + '</span>' +
-        '<span style="font-size:10px;color:rgba(180,140,60,0.4);margin-left:4px;">a=' + (step.a+1) + ' b=' + (step.b+1) + (step.flip ? ' ↔' : '') + (step.swap13 ? ' C' : '') + '</span>' +
+        '<span style="font-size:10px;color:rgba(180,140,60,0.4);margin-left:4px;">a=' + (step.a+1) + ' b=' + (step.b+1) + (step.flip ? ' R' : '') + (step.swap13 ? ' C' : '') + '</span>' +
       '</div>';
     container.appendChild(ldiv);
   }
