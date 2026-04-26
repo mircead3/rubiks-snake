@@ -2186,7 +2186,7 @@ function downloadComposeLog(name) {
     var step = _composeLog[i];
     var loopCD = step.loopFull[step.loopFull.length - 1];
     var loopCode = fmtCode(step.loopFull.slice(0, -1), loopCD);
-    var flags = 'a=' + (step.a + 1) + ' b=' + (step.b + 1) + (step.flip ? ' \u2194' : '') + (step.swap13 ? ' C' : '');
+    var flags = 'a=' + (step.a + 1) + ' b=' + (step.b + 1) + (step.flip ? ' R' : '') + (step.swap13 ? ' C' : '');
     var resCD = isClosed(step.resultDigits) ? closingDigit(step.resultDigits) : -1;
     lines.push('#');
     lines.push('# Step ' + (i + 1) + ': ' + step.loopName + '  ' + loopCode + '  ' + flags);
