@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
-Compose all existing Rubik's Snake pseudo loops pairwise (no equivalence reduction).
+Compose all Rubik's Snake pseudo loops pairwise.
+
+Usage:
+  python3 compose_pseudo.py              # print results to stdout
+  python3 compose_pseudo.py out.txt      # write results to file
 
 For each ordered pair (A, B) of pseudo loops (including A == B):
   - Try B in 4 variants: forward, reversed, swap13, reversed+swap13
   - Try all (d1, d2, d3) in {0,1,2,3}^3
   - Full explicit digit sequence: A_digits + [d1, d2] + B_variant + [d3]
-  - If that sequence is closeable (closing digit d4 exists), the result is a
+  - If that sequence is closeable (closing digit cd exists), the result is a
     closed loop with N_A + N_B + 2 segments.
   - Check for self-intersections; output all valid non-intersecting results.
+  - Deduplicate by canonical form (rotation, reversal, swap13).
 
 Composition structure:
-  A_last --(d1)--> bridge1 --(d2)--> B_first ... B_last --(d3)--> bridge2 --(close_d)--> A_first
+  A_last --(d1)--> bridge1 --(d2)--> B_first ... B_last --(d3)--> bridge2 --(cd)--> A_first
 """
 
 import sys, itertools, math
