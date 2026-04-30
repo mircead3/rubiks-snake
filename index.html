@@ -288,7 +288,6 @@ span.cursor-mark {
   <div id="edit-row">
     <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
-    <button class="btn" id="btn-zero" title="Replace with an all-zeros snake of the same length" onclick="zeroSnake()" disabled>Zero</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
   </div>
   <div id="error-msg"></div>
@@ -376,17 +375,16 @@ span.cursor-mark {
         <strong>Join</strong> — finalizes the composition: the result becomes the new base snake and the right panel resets to accept the next loop.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
-      <tr><td>Zero</td><td>Only available in edit mode. Replace the current snake with an all-zeros snake of the same length and clear the name. Undoable.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
     <table>
-      <tr><td>^→</td><td>Automatically fold the snake (advance cursor right) at a steady pace, skipping straight joints</td></tr>
-      <tr><td>^←</td><td>Automatically unfold the snake (advance cursor left) at a steady pace, skipping straight joints</td></tr>
+      <tr><td>z</td><td>Replace all digits from the cursor to the end with 0s. Undoable.</td></tr>
+      <tr><td>^→</td><td>Move cursor to the end of the code box (show full snake)</td></tr>
+      <tr><td>^←</td><td>Move cursor to the beginning of the code box (collapse snake)</td></tr>
       <tr><td>↑ / ↓</td><td>Increment / decrement the digit just left of the cursor (wraps 0–3), updating the snake immediately</td></tr>
       <tr><td>→ / ←</td><td>Move the fold cursor one step</td></tr>
-      <tr><td>Any other key</td><td>Stop the automatic folding/unfolding</td></tr>
       <tr><td>Alt+→ / Alt+←</td><td>Cyclic rotation (closed loops) or shift with 0-padding (open snakes): changes which segment is first</td></tr>
     </table>
 
@@ -440,7 +438,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'eb05078';
+var _VERSION = 'eb63651';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -1407,11 +1405,11 @@ function buildSnake(digits, fitCam) {
   if (isChiralGeometric(transforms, digits)) chiralEl.classList.add('geo-chiral');
   else chiralEl.classList.remove('geo-chiral');
 
-  // Self-intersection check (suppressed during auto-fold animation)
+  // Self-intersection check
   var _intersectionResult = null;
   try {
     _intersectionResult = _tubeMode ? checkTubeCollision(transforms, figureClosed) : checkIntersection(transforms);
-    if (_intersectionResult.hit && !_foldAnimating) {
+    if (_intersectionResult.hit) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
       var hp = [];
@@ -1726,12 +1724,16 @@ function applyCode() {
 
 
 codeInput.addEventListener('keydown', function(e) {
-  if (_foldTimer !== null) {
-    var isCtrlArrow = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
-    if (!isCtrlArrow) { _stopFoldAnim(); e.preventDefault(); return; }
-  }
+
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
+  if (rollMode && e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    var pos = codeInput.selectionStart;
+    var tail = codeInput.value.length - pos;
+    if (tail > 0) { _undoPush(); codeInput.value = codeInput.value.slice(0, pos) + '0'.repeat(tail); codeInput.selectionStart = codeInput.selectionEnd = pos; applyDisplay(); }
+    return;
+  }
   if (rollMode && e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
     e.preventDefault();
     _rotateCyclic(e.key === 'ArrowRight');
@@ -1945,12 +1947,33 @@ document.addEventListener('keydown', function(e) {
     }
     return;
   }
-  if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
     e.preventDefault();
-    _startFoldAnim(e.key === 'ArrowRight' ? 1 : -1);
+    codeInput.selectionStart = codeInput.selectionEnd = e.key === 'ArrowRight' ? codeInput.value.length : 0;
+    applyDisplay();
     return;
   }
-  if (_foldTimer !== null && !(e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft'))) { _stopFoldAnim(); }
+  if (rollMode && e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+    e.preventDefault();
+    codeInput.focus();
+    var pos = codeInput.selectionStart;
+    var tail = codeInput.value.length - pos;
+    if (tail > 0) { _undoPush(); codeInput.value = codeInput.value.slice(0, pos) + '0'.repeat(tail); codeInput.selectionStart = codeInput.selectionEnd = pos; applyDisplay(); }
+    return;
+  }
+  if (rollMode && /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+    e.preventDefault();
+    codeInput.focus();
+    var pos = codeInput.selectionStart;
+    _undoPush();
+    if (pos < codeInput.value.length) {
+      codeInput.value = codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos + 1);
+      codeInput.selectionStart = codeInput.selectionEnd = pos + 1;
+    }
+    autoResizeCode();
+    applyCode();
+    return;
+  }
   if (e.key === 'Enter' && hoveredFigureBtn) {
     if (_composeMode) {
       var name = hoveredFigureBtn.dataset.name;
@@ -2019,14 +2042,12 @@ function _setEditMode(on, keepUndo) {
     btnE.style.borderColor = '';
     btnE.style.color = '';
   }
-  document.getElementById('btn-zero').disabled = !on;
   if (!keepUndo) { _undoStack = []; _updateUndoButton(); }
   if (on && autoRotate) {
     autoRotate = false;
     document.getElementById('toggle-autorotate').style.opacity = '0.5';
   }
   if (!on) {
-    _stopFoldAnim();
     codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
     _numberOffset = 0;
     codeInput.blur();
@@ -2036,19 +2057,6 @@ function _setEditMode(on, keepUndo) {
   }
 }
 
-function zeroSnake() {
-  if (_composeMode) _exitComposeMode();
-  var zeros = '0'.repeat(getLength() - 1);
-  _undoPush();
-  _undoStack[_undoStack.length - 1].name = nameInput.value;
-  codeInput.value = zeros;
-  nameInput.value = '';
-  if (!rollMode) _setEditMode(true, true);
-  codeInput.focus();
-  codeInput.selectionStart = codeInput.selectionEnd = 0;
-  _savedCursorPos = 0;
-  applyDisplay();
-}
 
 document.getElementById('toggle-fold').addEventListener('click', function() {
   _setEditMode(!rollMode);
@@ -2070,43 +2078,6 @@ document.addEventListener('selectionchange', function() {
     applyDisplay();
   }
 });
-
-var _foldTimer = null;
-var _foldAnimating = false;
-function _stopFoldAnim() {
-  if (_foldTimer !== null) { clearInterval(_foldTimer); _foldTimer = null; }
-  _foldAnimating = false;
-}
-function _startFoldAnim(dir) {
-  var wasInEditMode = rollMode;
-  if (!rollMode) { _setEditMode(true); }
-  // Ensure textarea value is padded so cursor can reach the end
-  var expected = getLength() - 1;
-  var raw = codeInput.value.replace(/\s+/g, '');
-  raw = padCode(raw, expected);
-  if (codeInput.value !== raw) { var c = codeInput.selectionStart; codeInput.value = raw; codeInput.selectionStart = codeInput.selectionEnd = Math.min(c, raw.length); }
-  if (!wasInEditMode) { codeInput.selectionStart = codeInput.selectionEnd = raw.length; }
-  codeInput.focus();
-  _stopFoldAnim();
-  _foldAnimating = true;
-  _foldTimer = setInterval(function() {
-    var code = codeInput.value;
-    var maxPos = code.length;
-    var pos = codeInput.selectionStart;
-    do {
-      var next = dir > 0 ? Math.min(pos + 1, maxPos) : Math.max(pos - 1, 0);
-      if (next === pos) {
-        codeInput.selectionStart = codeInput.selectionEnd = pos;
-        applyDisplay();
-        _stopFoldAnim(); return;
-      }
-      var skipDigit = dir > 0 ? code[pos] : code[next];
-      pos = next;
-    } while (skipDigit === '0');
-    codeInput.selectionStart = codeInput.selectionEnd = pos;
-    applyDisplay();
-  }, 400);
-}
 
 var _loadedFileNames = [];
 var _activeFigureName = null;
@@ -5245,7 +5216,6 @@ function _enterComposeMode() {
   btnC.style.background = 'rgba(180,100,20,0.5)';
   btnC.style.borderColor = 'rgba(255,160,40,0.8)';
   btnC.style.color = '#ffcc66';
-  document.getElementById('btn-zero').disabled = true;
   lengthInput.readOnly = false;
   _composeMode = true;
 }
@@ -5274,7 +5244,6 @@ function _exitComposeMode() {
   btnC.style.background = '';
   btnC.style.borderColor = '';
   btnC.style.color = '';
-  document.getElementById('btn-zero').disabled = false;
   lengthInput.readOnly = true;
   // Rebuild snake with normal coloring (no l-block highlight)
   var r = parseCode(codeInput.value);
