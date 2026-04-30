@@ -288,7 +288,7 @@ span.cursor-mark {
   <div id="edit-row">
     <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
-    <button class="btn" id="btn-zero" title="Replace with all-zeros snake of same length, enter edit mode" onclick="zeroSnake()">Zero</button>
+    <button class="btn" id="btn-zero" title="Replace with an all-zeros snake of the same length" onclick="zeroSnake()" disabled>Zero</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
   </div>
   <div id="error-msg"></div>
@@ -376,7 +376,7 @@ span.cursor-mark {
         <strong>Join</strong> — finalizes the composition: the result becomes the new base snake and the right panel resets to accept the next loop.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
-      <tr><td>Zero</td><td>Replace the current snake with an all-zeros snake of the same length, clear the name, and enter edit mode. Undoable.</td></tr>
+      <tr><td>Zero</td><td>Only available in edit mode. Replace the current snake with an all-zeros snake of the same length and clear the name. Undoable.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
     </table>
 
@@ -440,7 +440,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '8244914';
+var _VERSION = 'da8d6a7';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -595,6 +595,7 @@ function toggleTubeMode() {
   btn.style.background = _tubeMode ? 'rgba(50,50,120,0.9)' : '';
   btn.style.color = _tubeMode ? '#fff' : '';
   document.getElementById('tube-radius').readOnly = !_tubeMode;
+  document.getElementById('toggle-numbers').disabled = _tubeMode;
   _rebuildCurrentView();
 }
 
@@ -1547,6 +1548,27 @@ codeInput.addEventListener('beforeinput', function(e) {
   if (e.data && /[^0-3]/.test(e.data)) { e.preventDefault(); return; }
   if (e.inputType !== 'insertText') _undoPush();  // push for delete/paste; digit keys handled in keydown
 });
+codeInput.addEventListener('paste', function(e) {
+  e.preventDefault();
+  var raw = (e.clipboardData || window.clipboardData).getData('text');
+  var filtered = raw.replace(/[^0-3]/g, '');
+  if (!filtered) return;
+  _undoPush();
+  var cur = codeInput.value;
+  var s0 = codeInput.selectionStart, s1 = codeInput.selectionEnd;
+  var newCode = cur.slice(0, s0) + filtered + cur.slice(s1);
+  var needed = newCode.length;
+  if (needed > getLength() - 1) {
+    var newLen = Math.min(needed + 1, MAX_SEGMENTS);
+    lengthInput.value = newLen;
+    _lastAppliedLength = newLen;
+    newCode = newCode.slice(0, newLen - 1);
+  }
+  codeInput.value = newCode;
+  codeInput.selectionStart = codeInput.selectionEnd = Math.min(s0 + filtered.length, newCode.length);
+  autoResizeCode();
+  applyCode();
+});
 codeInput.addEventListener('blur', function() {
   _savedCursorPos = codeInput.selectionStart;
   updateCodeDisplay();
@@ -1968,6 +1990,7 @@ function _setEditMode(on, keepUndo) {
     btnE.style.borderColor = '';
     btnE.style.color = '';
   }
+  document.getElementById('btn-zero').disabled = !on;
   if (!keepUndo) { _undoStack = []; _updateUndoButton(); }
   if (on && autoRotate) {
     autoRotate = false;
