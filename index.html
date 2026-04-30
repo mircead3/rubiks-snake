@@ -368,7 +368,7 @@ span.cursor-mark {
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
-      <tr><td>Edit</td><td>Toggle edit mode: enables code editing and shows the snake only up to the cursor position. Edit mode can also be entered by clicking in the code box. Move the cursor to fold/unfold step by step. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
+      <tr><td>Edit</td><td>Toggle edit mode: enables code editing. The cursor position controls how much of the snake is shown at full brightness — segments up to the cursor are fully lit, the rest are dimmed. Edit mode can also be entered by clicking in the code box. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Snake <strong>a</strong> is the base figure; snake <strong>b</strong> is the closed loop to attach. Click any closed figure in a list to select it as snake b. Choose the joining segments using the two selectors. The result is shown live; snake b's segments appear in a distinct color. Each selector change is individually undoable.<br><br>
         <strong>↔ (reverse)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
         <strong>C</strong> — next to the reverse button. Swaps 1↔3 in all joints of snake b (mirror image). Can be combined with reverse.<br><br>
@@ -381,10 +381,11 @@ span.cursor-mark {
     <h3>Edit mode shortcuts</h3>
     <table>
       <tr><td>z</td><td>Replace all digits from the cursor to the end with 0s. Undoable.</td></tr>
-      <tr><td>^→</td><td>Move cursor to the end of the code box (show full snake)</td></tr>
-      <tr><td>^←</td><td>Move cursor to the beginning of the code box (collapse snake)</td></tr>
+      <tr><td>^0–3</td><td>Insert a digit at the cursor, shifting the rest right; the last digit is dropped. Undoable.</td></tr>
+      <tr><td>^→</td><td>Move cursor to the end of the code box (fully lit snake)</td></tr>
+      <tr><td>^←</td><td>Move cursor to the beginning of the code box (only first segment lit)</td></tr>
       <tr><td>↑ / ↓</td><td>Increment / decrement the digit just left of the cursor (wraps 0–3), updating the snake immediately</td></tr>
-      <tr><td>→ / ←</td><td>Move the fold cursor one step</td></tr>
+      <tr><td>→ / ←</td><td>Move the cursor one step, lighting one more or fewer segment</td></tr>
       <tr><td>Alt+→ / Alt+←</td><td>Cyclic rotation (closed loops) or shift with 0-padding (open snakes): changes which segment is first</td></tr>
     </table>
 
@@ -438,7 +439,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'eb63651';
+var _VERSION = 'c1422c9';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -732,12 +733,15 @@ function pickSnakeColor() {
   var c = choices[Math.floor(Math.random() * choices.length)];
   _lastSnakeColor = c;
   MAT_A.color.setHex(c);
+  MAT_A_DIM.color.setHex(c);
   _INNER_MAT_A.color.setHex(c);
 }
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_B = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_HIT = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_L = new THREE.MeshPhongMaterial({ color: 0xE07B00, shininess: 120, specular: new THREE.Color(0x888888) });
+var MAT_A_DIM = new THREE.MeshPhongMaterial({ color: 0xD42B2B, transparent: true, opacity: 0.28, depthWrite: false });
+var MAT_B_DIM = new THREE.MeshPhongMaterial({ color: 0xF0F0F0, transparent: true, opacity: 0.28, depthWrite: false });
 // Inner rectangle materials (MeshBasicMaterial = unlit, solid color)
 var _INNER_MAT_A = new THREE.MeshBasicMaterial({ color: 0xD42B2B }); // colored – for insets on white segments
 var _INNER_MAT_B = new THREE.MeshBasicMaterial({ color: 0xF0F0F0 }); // white  – for insets on colored segments
@@ -1366,7 +1370,8 @@ function highlightNumberFaces(hitIndices) {
 var snakeGroup = null;
 var LOCAL_CORNERS_ARR = [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,0,1],[0,1,1]];
 
-function buildSnake(digits, fitCam) {
+function buildSnake(digits, fitCam, dimFrom) {
+  if (dimFrom === undefined) dimFrom = -1;
   // Preserve exact world transform so unchanged segments stay in place
   var savedQ = null, savedP = null;
   if (!fitCam && snakeGroup) {
@@ -1442,24 +1447,29 @@ function buildSnake(digits, fitCam) {
   if (_tubeMode) {
     for (var i = 0; i < transforms.length; i++) {
       var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
-      var matColored = (_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A;
-      var mat = isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : MAT_B);
+      var isDim = dimFrom >= 0 && i >= dimFrom;
+      var matColored = isDim ? MAT_A_DIM : ((_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A);
+      var mat = isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : (isDim ? MAT_B_DIM : MAT_B));
       snakeGroup.add(buildTubeMesh(transforms[i], mat));
     }
     numberGroup = null;
     collisionNumbers = false;
   } else {
+  var brightT = dimFrom >= 0 ? transforms.slice(0, dimFrom) : transforms;
+  var brightLBlock = (dimFrom >= 0 && _composeLBlock) ? _composeLBlock.slice(0, dimFrom) : _composeLBlock;
+
   for (var i = 0; i < transforms.length; i++) {
     var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
-    var matColored = (_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A;
-    var mesh = new THREE.Mesh(BASE_GEO.clone(), isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : MAT_B));
+    var isDim = dimFrom >= 0 && i >= dimFrom;
+    var matColored = isDim ? MAT_A_DIM : ((_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A);
+    var mesh = new THREE.Mesh(BASE_GEO.clone(), isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : (isDim ? MAT_B_DIM : MAT_B)));
     mesh.matrixAutoUpdate = false;
     mesh.matrix.copy(transforms[i]);
     mesh.matrixWorldNeedsUpdate = true;
     snakeGroup.add(mesh);
   }
-  // Segment number labels (baked onto prism faces)
-  numberGroup = buildNumberFaces(transforms);
+  // Segment number labels (baked onto prism faces, bright segments only)
+  numberGroup = buildNumberFaces(brightT);
   snakeGroup.add(numberGroup);
   if (_intersectionResult && _intersectionResult.hit) {
     highlightNumberFaces([_intersectionResult.a, _intersectionResult.b]);
@@ -1470,17 +1480,17 @@ function buildSnake(digits, fitCam) {
   }
   if (numberGroup) numberGroup.visible = showNumbers || collisionNumbers;
 
-  // Cube-crack lines
-  var crackPos = buildCubeCracks(transforms);
+  // Cube-crack lines (bright segments only)
+  var crackPos = buildCubeCracks(brightT);
   if (crackPos.length > 0) {
     var crackGeo = new THREE.BufferGeometry();
     crackGeo.setAttribute('position', new THREE.Float32BufferAttribute(crackPos, 3));
     snakeGroup.add(new THREE.LineSegments(crackGeo, _CRACK_MAT));
   }
 
-  // Seam lines between coplanar adjacent rectangular faces (thick quads, opposite color)
+  // Seam lines between coplanar adjacent rectangular faces (bright segments only)
   var hw = 0.03; // half-width of seam quad
-  var seamData = buildSeamLines(transforms, _composeLBlock);
+  var seamData = buildSeamLines(brightT, brightLBlock);
   if (seamData.posA.length > 0)  // even segs → white seam
     snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posA, seamData.normA, hw), _INNER_MAT_B));
   if (seamData.posB.length > 0)  // odd s-block segs → s-color seam
@@ -1488,10 +1498,10 @@ function buildSnake(digits, fitCam) {
   if (seamData.posL.length > 0)  // odd l-block segs → l-color seam
     snakeGroup.add(new THREE.Mesh(buildSeamQuads(seamData.posL, seamData.normL, hw), _INNER_MAT_L));
 
-  // Inner rect decorations on rectangular faces
-  snakeGroup.add(buildInnerRects(transforms, _composeLBlock));
+  // Inner rect decorations on rectangular faces (bright segments only)
+  snakeGroup.add(buildInnerRects(brightT, brightLBlock));
 
-  // End markers on open figures
+  // End markers on open figures (always full snake)
   if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
   }
 
@@ -1689,22 +1699,11 @@ function applyDisplay(cursorOverride) {
   var raw = codeInput.value.replace(/\s+/g, '');
   raw = padCode(raw, expected);
   var cursor = cursorOverride !== undefined ? cursorOverride : codeInput.selectionStart;
-  var displayRaw = raw.slice(0, cursor) + '0'.repeat(raw.length - cursor);
-  var r = parseCode(displayRaw);
+  var r = parseCode(raw);
   if (r.err) return;
   clearError();
-  try { buildSnake(r.digits, false); } catch(e) {}
+  try { buildSnake(r.digits, false, cursor + 1); } catch(e) {}
   updateCodeDisplay();
-  // Keep closing-digit indicator based on the full code, not the partial display.
-  var rFull = parseCode(raw);
-  if (!rFull.err) {
-    var cd = closingDigit(rFull.digits);
-    if (cd >= 0) {
-      var cde = document.getElementById('closing-digit');
-      cde.textContent = cd;
-      cde.classList.add('visible');
-    }
-  }
 }
 
 function applyCode() {
@@ -1727,6 +1726,16 @@ codeInput.addEventListener('keydown', function(e) {
 
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
+  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && /^[0-3]$/.test(e.key)) {
+    e.preventDefault();
+    var pos = codeInput.selectionStart, max = getLength() - 1;
+    _undoPush();
+    var newCode = (codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos)).slice(0, max);
+    codeInput.value = newCode;
+    codeInput.selectionStart = codeInput.selectionEnd = Math.min(pos + 1, newCode.length);
+    applyCode();
+    return;
+  }
   if (rollMode && e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     var pos = codeInput.selectionStart;
@@ -1926,9 +1935,9 @@ document.addEventListener('keydown', function(e) {
   if (rollMode && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
       (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && document.activeElement !== codeInput) {
     e.preventDefault();
-    codeInput.focus();
-    var pos = codeInput.selectionStart;
+    var pos = _savedCursorPos !== null ? _savedCursorPos : codeInput.selectionStart;
     var newPos = e.key === 'ArrowRight' ? Math.min(codeInput.value.length, pos + 1) : Math.max(0, pos - 1);
+    codeInput.focus();
     codeInput.selectionStart = codeInput.selectionEnd = newPos;
     applyDisplay(newPos);
     return;
@@ -1947,8 +1956,9 @@ document.addEventListener('keydown', function(e) {
     }
     return;
   }
-  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && document.activeElement !== codeInput) {
     e.preventDefault();
+    codeInput.focus();
     codeInput.selectionStart = codeInput.selectionEnd = e.key === 'ArrowRight' ? codeInput.value.length : 0;
     applyDisplay();
     return;
@@ -1959,6 +1969,17 @@ document.addEventListener('keydown', function(e) {
     var pos = codeInput.selectionStart;
     var tail = codeInput.value.length - pos;
     if (tail > 0) { _undoPush(); codeInput.value = codeInput.value.slice(0, pos) + '0'.repeat(tail); codeInput.selectionStart = codeInput.selectionEnd = pos; applyDisplay(); }
+    return;
+  }
+  if (rollMode && /^[0-3]$/.test(e.key) && e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+    e.preventDefault();
+    codeInput.focus();
+    var pos = codeInput.selectionStart, max = getLength() - 1;
+    _undoPush();
+    var newCode = (codeInput.value.slice(0, pos) + e.key + codeInput.value.slice(pos)).slice(0, max);
+    codeInput.value = newCode;
+    codeInput.selectionStart = codeInput.selectionEnd = Math.min(pos + 1, newCode.length);
+    applyCode();
     return;
   }
   if (rollMode && /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
