@@ -289,6 +289,7 @@ span.cursor-mark {
     <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
+    <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)" onclick="redoCode()" disabled>↪</button>
   </div>
   <div id="error-msg"></div>
 </div>
@@ -376,6 +377,7 @@ span.cursor-mark {
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
+      <tr><td>↪</td><td>Redo (re-apply an undone edit). Also <code>Ctrl+Y</code> / <code>Cmd+Y</code>. Cleared when a new edit is made.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -439,7 +441,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'c1422c9';
+var _VERSION = 'edc2b85';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -1530,13 +1532,20 @@ var lengthInput = document.getElementById('length-input');
 var errorDiv    = document.getElementById('error-msg');
 
 var _undoStack = [];
+var _redoStack = [];
 function _updateUndoButton() {
   var btn = document.getElementById('btn-undo');
   var n = _undoStack.length;
   btn.disabled = (n === 0);
   btn.textContent = n > 0 ? '\u21a9 ' + n : '\u21a9';
 }
-function _undoPush() {
+function _updateRedoButton() {
+  var btn = document.getElementById('btn-redo');
+  var n = _redoStack.length;
+  btn.disabled = (n === 0);
+  btn.textContent = n > 0 ? '\u21aa ' + n : '\u21aa';
+}
+function _currentEntry() {
   var entry = { value: codeInput.value, selStart: codeInput.selectionStart, length: String(_lastAppliedLength) };
   if (_composeMode) {
     entry.composeState = {
@@ -1550,13 +1559,15 @@ function _undoPush() {
       log: _composeLog.map(function(e) { return Object.assign({}, e); })
     };
   }
-  _undoStack.push(entry);
+  return entry;
+}
+function _undoPush() {
+  _redoStack = [];
+  _updateRedoButton();
+  _undoStack.push(_currentEntry());
   _updateUndoButton();
 }
-function undoCode() {
-  if (_undoStack.length === 0) return;
-  var state = _undoStack.pop();
-  _updateUndoButton();
+function _restoreEntry(state) {
   if (_composeMode && state.composeState) {
     var cs = state.composeState;
     _composeS = cs.s;
@@ -1580,6 +1591,22 @@ function undoCode() {
     codeInput.selectionStart = codeInput.selectionEnd = state.selStart;
     if (rollMode) applyDisplay();
   }
+}
+function undoCode() {
+  if (_undoStack.length === 0) return;
+  _redoStack.push(_currentEntry());
+  _updateRedoButton();
+  var state = _undoStack.pop();
+  _updateUndoButton();
+  _restoreEntry(state);
+}
+function redoCode() {
+  if (_redoStack.length === 0) return;
+  _undoStack.push(_currentEntry());
+  _updateUndoButton();
+  var state = _redoStack.pop();
+  _updateRedoButton();
+  _restoreEntry(state);
 }
 codeInput.addEventListener('beforeinput', function(e) {
   if (e.data && /[^0-3]/.test(e.data)) { e.preventDefault(); return; }
@@ -1726,6 +1753,7 @@ codeInput.addEventListener('keydown', function(e) {
 
   if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyCode(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undoCode(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'y') { e.preventDefault(); redoCode(); return; }
   if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && /^[0-3]$/.test(e.key)) {
     e.preventDefault();
     var pos = codeInput.selectionStart, max = getLength() - 1;
@@ -1853,8 +1881,8 @@ function loadFigure(name, code, expectedCD) {
   document.querySelectorAll('#active-figures .file-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.name === name);
   });
-  _undoStack = [];
-  _updateUndoButton();
+  _undoStack = []; _redoStack = [];
+  _updateUndoButton(); _updateRedoButton();
   _savedCursorPos = null;
   _numberOffset = 0;
   if (showNumbers) {
@@ -2063,7 +2091,7 @@ function _setEditMode(on, keepUndo) {
     btnE.style.borderColor = '';
     btnE.style.color = '';
   }
-  if (!keepUndo) { _undoStack = []; _updateUndoButton(); }
+  if (!keepUndo) { _undoStack = []; _redoStack = []; _updateUndoButton(); _updateRedoButton(); }
   if (on && autoRotate) {
     autoRotate = false;
     document.getElementById('toggle-autorotate').style.opacity = '0.5';
@@ -5229,8 +5257,8 @@ function _enterComposeMode() {
   }
 
   // Fresh undo stack for compose mode
-  _undoStack = [];
-  _updateUndoButton();
+  _undoStack = []; _redoStack = [];
+  _updateUndoButton(); _updateRedoButton();
 
   var btnC = document.getElementById('btn-compose');
   btnC.style.opacity = '1';
@@ -5249,8 +5277,8 @@ function _exitComposeMode() {
   _composeLabels = null;
   _composeLBlock = null;
   _composeLColor = -1;
-  _undoStack = [];
-  _updateUndoButton();
+  _undoStack = []; _redoStack = [];
+  _updateUndoButton(); _updateRedoButton();
   if (showNumbers) {
     showNumbers = false;
     document.getElementById('toggle-numbers').style.opacity = '0.5';
