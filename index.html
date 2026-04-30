@@ -440,7 +440,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'da8d6a7';
+var _VERSION = 'eb05078';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -625,6 +625,35 @@ function buildTubeMesh(transform, mat) {
   var curve = new THREE.CatmullRomCurve3(pts);
   var geo = new THREE.TubeGeometry(curve, N, _tubeRadius, 10, false);
   return new THREE.Mesh(geo, mat);
+}
+
+function checkTubeCollision(transforms, figureClosed) {
+  var N = transforms.length;
+  var EPS2 = 1e-6;
+  // Precompute both end-circle centers for each tube
+  var pts = new Array(N);
+  for (var i = 0; i < N; i++) {
+    var m = transforms[i].elements;
+    pts[i] = [
+      [0.5*m[0]+0.5*m[8]+m[12], 0.5*m[1]+0.5*m[9]+m[13], 0.5*m[2]+0.5*m[10]+m[14]],
+      [0.5*m[4]+0.5*m[8]+m[12], 0.5*m[5]+0.5*m[9]+m[13], 0.5*m[6]+0.5*m[10]+m[14]]
+    ];
+  }
+  function near(a, b) {
+    var dx=a[0]-b[0], dy=a[1]-b[1], dz=a[2]-b[2];
+    return dx*dx+dy*dy+dz*dz < EPS2;
+  }
+  for (var i = 0; i < N-1; i++) {
+    for (var j = i+1; j < N; j++) {
+      var d = j - i;
+      if (figureClosed) d = Math.min(d, N-d);
+      if (d < 2) continue;
+      var pi = pts[i], pj = pts[j];
+      if (near(pi[0],pj[0])||near(pi[0],pj[1])||near(pi[1],pj[0])||near(pi[1],pj[1]))
+        return {hit:true, a:i, b:j};
+    }
+  }
+  return {hit:false};
 }
 
 // ─── THUMBNAIL RENDERER ────────────────────────────────────────────────────────
@@ -1381,7 +1410,7 @@ function buildSnake(digits, fitCam) {
   // Self-intersection check (suppressed during auto-fold animation)
   var _intersectionResult = null;
   try {
-    _intersectionResult = checkIntersection(transforms);
+    _intersectionResult = _tubeMode ? checkTubeCollision(transforms, figureClosed) : checkIntersection(transforms);
     if (_intersectionResult.hit && !_foldAnimating) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
