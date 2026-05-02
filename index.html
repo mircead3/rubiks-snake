@@ -443,7 +443,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '97c66bc';
+var _VERSION = '9746a1a';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -608,8 +608,7 @@ function toggleCollisionMode() {
   _syncCollisionBtn();
   _rebuildCurrentView();
 }
-var MAT_LINE     = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
-var MAT_LINE_DIM = new THREE.MeshPhongMaterial({ color: 0xD42B2B, transparent: true, opacity: 0.28, depthWrite: false });
+
 
 function _syncRadiusInput() {
   var inp = document.getElementById('tube-radius');
@@ -806,8 +805,7 @@ function pickSnakeColor() {
   _lastSnakeColor = c;
   MAT_A.color.setHex(c);
   MAT_A_DIM.color.setHex(c);
-  MAT_LINE.color.setHex(c);
-  MAT_LINE_DIM.color.setHex(c);
+
   _INNER_MAT_A.color.setHex(c);
 }
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
@@ -1522,18 +1520,18 @@ function buildSnake(digits, fitCam, dimFrom) {
   if (_lineMode) {
     var sphereGeo = new THREE.SphereGeometry(_lineRadius, 10, 10);
     if (!figureClosed) {
-      // Free start: the face of segment 0 not used by joint 0 (even joint uses (0.5,0,0.5), free end is (0,0.5,0.5))
+      // Free start: belongs to segment 0 (even → MAT_A)
       var m0 = transforms[0].elements;
       var isDim0 = dimFrom >= 0 && 0 >= dimFrom;
-      var matStart = (isDim0 ? MAT_LINE_DIM : MAT_LINE);
-      var spStart = new THREE.Mesh(sphereGeo, matStart);
+      var spStart = new THREE.Mesh(sphereGeo, isDim0 ? MAT_A_DIM : MAT_A);
       spStart.position.set(0.5*m0[4]+0.5*m0[8]+m0[12], 0.5*m0[5]+0.5*m0[9]+m0[13], 0.5*m0[6]+0.5*m0[10]+m0[14]);
       snakeGroup.add(spStart);
     }
     for (var i = 0; i < transforms.length; i++) {
       var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
       var isDim = dimFrom >= 0 && i >= dimFrom;
-      var mat = isHitSeg ? MAT_HIT : (isDim ? MAT_LINE_DIM : MAT_LINE);
+      var matColored = isDim ? MAT_A_DIM : ((_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A);
+      var mat = isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : (isDim ? MAT_B_DIM : MAT_B));
       snakeGroup.add(buildLineMesh(transforms[i], mat));
       // Even joint: pivot at (0.5,0,0.5); odd joint: pivot at (0,0.5,0.5)
       var ms = transforms[i].elements;
