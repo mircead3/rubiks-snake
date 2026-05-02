@@ -442,7 +442,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'dde8e1b';
+var _VERSION = '25c5d4b';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -1464,10 +1464,11 @@ function buildSnake(digits, fitCam, dimFrom) {
   if (isChiralGeometric(transforms, digits)) chiralEl.classList.add('geo-chiral');
   else chiralEl.classList.remove('geo-chiral');
 
-  // Self-intersection check
+  // Self-intersection check (only bright segments in edit mode)
   var _intersectionResult = null;
   try {
-    _intersectionResult = (_tubeMode || _lineMode) ? checkTubeCollision(transforms, figureClosed) : checkIntersection(transforms);
+    var checkT = dimFrom >= 0 ? transforms.slice(0, dimFrom) : transforms;
+    _intersectionResult = (_tubeMode || _lineMode) ? checkTubeCollision(checkT, figureClosed) : checkIntersection(checkT);
     if (_intersectionResult.hit) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
@@ -1585,6 +1586,21 @@ function buildSnake(digits, fitCam, dimFrom) {
 
   // End markers on open figures (always full snake)
   if (!figureClosed && !_tubeMode && !_lineMode) snakeGroup.add(buildEndMarkers(transforms));
+
+  // Cursor marker: black square on the joint face of the last bright segment
+  if (dimFrom > 0 && dimFrom < transforms.length) {
+    var lastBright = dimFrom - 1;
+    var Tcur = transforms[lastBright];
+    var jointEven = lastBright % 2 === 0;
+    var lp = jointEven ? new THREE.Vector3(0.5, 0, 0.5) : new THREE.Vector3(0, 0.5, 0.5);
+    var ln = jointEven ? new THREE.Vector3(0, -1, 0)    : new THREE.Vector3(-1, 0, 0);
+    var norm = ln.clone().transformDirection(Tcur);
+    var pos  = lp.clone().applyMatrix4(Tcur).addScaledVector(norm, 0.01);
+    var sqMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.38), _END_MAT);
+    sqMesh.position.copy(pos);
+    sqMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), norm);
+    snakeGroup.add(sqMesh);
+  }
   }
 
   if (savedQ && savedP) {
