@@ -363,7 +363,7 @@ span.cursor-mark {
       <tr><td>C</td><td>Appears when the figure's code is not equivalent to its mirror image (swap 1↔3 in joints). Click to toggle the mirror view. A superscript <strong>*</strong> means the 3D shape is geometrically chiral — it cannot be rotated to match its mirror image.</td></tr>
     </table>
 
-    <h3>Bottom row</h3>
+    <h3>Second row</h3>
     <table>
       <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
       <tr><td>Copy</td><td>Copy the current code to the clipboard.</td></tr>
@@ -371,7 +371,11 @@ span.cursor-mark {
       <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
       <tr><td>?</td><td>This help page</td></tr>
-      <tr><td>Edit</td><td>Toggle edit mode: enables code editing. The cursor position controls how much of the snake is shown at full brightness — segments up to the cursor are fully lit, the rest are dimmed. Edit mode can also be entered by clicking in the code box. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
+    </table>
+
+    <h3>Third row</h3>
+    <table>
+      <tr><td>Edit</td><td>Toggle edit mode: enables code editing. The cursor position controls how much of the snake is shown at full brightness — segments up to the cursor are fully lit, the rest are dimmed. A black square marks the cursor position on the snake. Edit mode can also be entered by clicking in the code box. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Snake <strong>a</strong> is the base figure; snake <strong>b</strong> is the closed loop to attach. Click any closed figure in a list to select it as snake b. Choose the joining segments using the two selectors. The result is shown live; snake b's segments appear in a distinct color. Each selector change is individually undoable.<br><br>
         <strong>↔ (reverse)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
         <strong>C</strong> — next to the reverse button. Swaps 1↔3 in all joints of snake b (mirror image). Can be combined with reverse.<br><br>
@@ -380,6 +384,10 @@ span.cursor-mark {
         <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
       <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
       <tr><td>↪</td><td>Redo (re-apply an undone edit). Also <code>Ctrl+Y</code> / <code>Cmd+Y</code>. Cleared when a new edit is made.</td></tr>
+      <tr><td>Tube</td><td>Toggle tube view: renders the snake as a continuous tube following the center path of each segment.</td></tr>
+      <tr><td>Line</td><td>Toggle line view: renders the snake as a 3D polyline — cylinders connecting the face centers of adjacent segments, with spheres at each joint.</td></tr>
+      <tr><td>Radius</td><td>Tube or line thickness. Editable when Tube or Line is active. Default: 0.12 for tube (min 0.02), 0.06 for line (min 0.01).</td></tr>
+      <tr><td>Coll:Strict / Coll:Loose</td><td>Toggle collision detection algorithm. <strong>Strict</strong> (default) uses the precise prism geometry. <strong>Loose</strong> uses tube endpoint proximity — useful when exploring configurations that would be flagged as intersecting in strict mode.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -443,7 +451,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '9746a1a';
+var _VERSION = 'b874dd5';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -626,8 +634,6 @@ function toggleTubeMode() {
   btn.style.color = _tubeMode ? '#fff' : '';
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
-  _collisionMode = (_tubeMode || _lineMode) ? 'loose' : 'strict';
-  _syncCollisionBtn();
   _rebuildCurrentView();
 }
 
@@ -647,8 +653,6 @@ function toggleLineMode() {
   _styleLineBtn();
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
-  _collisionMode = (_tubeMode || _lineMode) ? 'loose' : 'strict';
-  _syncCollisionBtn();
   _rebuildCurrentView();
 }
 
