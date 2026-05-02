@@ -283,6 +283,7 @@ span.cursor-mark {
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
     <span class="row-spacer"></span>
     <button class="btn" id="toggle-tube" onclick="toggleTubeMode()" title="Toggle tube view">Tube</button>
+    <button class="btn" id="toggle-line" onclick="toggleLineMode()" title="Toggle line view">Line</button>
     <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
   </div>
   <div id="edit-row">
@@ -441,7 +442,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'edc2b85';
+var _VERSION = 'dde8e1b';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -586,24 +587,61 @@ function createPrismGeometry() {
 }
 var BASE_GEO = createPrismGeometry();
 
-// ─── TUBE VIEW ─────────────────────────────────────────────────────────────────
+// ─── TUBE / LINE VIEW ──────────────────────────────────────────────────────────
 var _tubeMode = false;
+var _lineMode = false;
 var _tubeRadius = 0.12;
+var _lineRadius = 0.06;
+var MAT_LINE     = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
+var MAT_LINE_DIM = new THREE.MeshPhongMaterial({ color: 0xD42B2B, transparent: true, opacity: 0.28, depthWrite: false });
+
+function _syncRadiusInput() {
+  var inp = document.getElementById('tube-radius');
+  inp.readOnly = !(_tubeMode || _lineMode);
+  if (_tubeMode) { inp.min = '0.02'; inp.value = _tubeRadius; }
+  else if (_lineMode) { inp.min = '0.01'; inp.value = _lineRadius; }
+  else { inp.min = '0.02'; }
+}
 
 function toggleTubeMode() {
   _tubeMode = !_tubeMode;
+  if (_tubeMode && _lineMode) { _lineMode = false; _styleLineBtn(); }
   var btn = document.getElementById('toggle-tube');
   btn.style.background = _tubeMode ? 'rgba(50,50,120,0.9)' : '';
   btn.style.color = _tubeMode ? '#fff' : '';
-  document.getElementById('tube-radius').readOnly = !_tubeMode;
-  document.getElementById('toggle-numbers').disabled = _tubeMode;
+  _syncRadiusInput();
+  document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
+  _rebuildCurrentView();
+}
+
+function _styleLineBtn() {
+  var btn = document.getElementById('toggle-line');
+  btn.style.background = _lineMode ? 'rgba(50,50,120,0.9)' : '';
+  btn.style.color = _lineMode ? '#fff' : '';
+}
+
+function toggleLineMode() {
+  _lineMode = !_lineMode;
+  if (_lineMode && _tubeMode) {
+    _tubeMode = false;
+    var tb = document.getElementById('toggle-tube');
+    tb.style.background = ''; tb.style.color = '';
+  }
+  _styleLineBtn();
+  _syncRadiusInput();
+  document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
   _rebuildCurrentView();
 }
 
 document.getElementById('tube-radius').addEventListener('change', function() {
-  _tubeRadius = Math.max(0.02, Math.min(0.45, parseFloat(this.value) || 0.12));
-  this.value = _tubeRadius;
-  if (_tubeMode) _rebuildCurrentView();
+  if (_tubeMode) {
+    _tubeRadius = Math.max(0.02, Math.min(0.45, parseFloat(this.value) || 0.12));
+    this.value = _tubeRadius;
+  } else if (_lineMode) {
+    _lineRadius = Math.max(0.01, Math.min(0.45, parseFloat(this.value) || 0.06));
+    this.value = _lineRadius;
+  }
+  if (_tubeMode || _lineMode) _rebuildCurrentView();
 });
 
 function _rebuildCurrentView() {
@@ -626,6 +664,18 @@ function buildTubeMesh(transform, mat) {
   var curve = new THREE.CatmullRomCurve3(pts);
   var geo = new THREE.TubeGeometry(curve, N, _tubeRadius, 10, false);
   return new THREE.Mesh(geo, mat);
+}
+
+function buildLineMesh(transform, mat) {
+  var start = new THREE.Vector3(0.5, 0, 0.5).applyMatrix4(transform);
+  var end   = new THREE.Vector3(0, 0.5, 0.5).applyMatrix4(transform);
+  var dir = new THREE.Vector3().subVectors(end, start);
+  var len = dir.length();
+  var geo = new THREE.CylinderGeometry(_lineRadius, _lineRadius, len, 10, 1, false);
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(start).addScaledVector(dir, 0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return mesh;
 }
 
 function checkTubeCollision(transforms, figureClosed) {
@@ -736,6 +786,8 @@ function pickSnakeColor() {
   _lastSnakeColor = c;
   MAT_A.color.setHex(c);
   MAT_A_DIM.color.setHex(c);
+  MAT_LINE.color.setHex(c);
+  MAT_LINE_DIM.color.setHex(c);
   _INNER_MAT_A.color.setHex(c);
 }
 var MAT_A = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
@@ -1415,7 +1467,7 @@ function buildSnake(digits, fitCam, dimFrom) {
   // Self-intersection check
   var _intersectionResult = null;
   try {
-    _intersectionResult = _tubeMode ? checkTubeCollision(transforms, figureClosed) : checkIntersection(transforms);
+    _intersectionResult = (_tubeMode || _lineMode) ? checkTubeCollision(transforms, figureClosed) : checkIntersection(transforms);
     if (_intersectionResult.hit) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
@@ -1446,7 +1498,35 @@ function buildSnake(digits, fitCam, dimFrom) {
   box.getCenter(center);
 
   snakeGroup = new THREE.Group();
-  if (_tubeMode) {
+  if (_lineMode) {
+    var sphereGeo = new THREE.SphereGeometry(_lineRadius, 10, 10);
+    if (!figureClosed) {
+      // Free start: the face of segment 0 not used by joint 0 (even joint uses (0.5,0,0.5), free end is (0,0.5,0.5))
+      var m0 = transforms[0].elements;
+      var isDim0 = dimFrom >= 0 && 0 >= dimFrom;
+      var matStart = (isDim0 ? MAT_LINE_DIM : MAT_LINE);
+      var spStart = new THREE.Mesh(sphereGeo, matStart);
+      spStart.position.set(0.5*m0[4]+0.5*m0[8]+m0[12], 0.5*m0[5]+0.5*m0[9]+m0[13], 0.5*m0[6]+0.5*m0[10]+m0[14]);
+      snakeGroup.add(spStart);
+    }
+    for (var i = 0; i < transforms.length; i++) {
+      var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
+      var isDim = dimFrom >= 0 && i >= dimFrom;
+      var mat = isHitSeg ? MAT_HIT : (isDim ? MAT_LINE_DIM : MAT_LINE);
+      snakeGroup.add(buildLineMesh(transforms[i], mat));
+      // Even joint: pivot at (0.5,0,0.5); odd joint: pivot at (0,0.5,0.5)
+      var ms = transforms[i].elements;
+      var sp = new THREE.Mesh(sphereGeo, mat);
+      if (i % 2 === 0) {
+        sp.position.set(0.5*ms[0]+0.5*ms[8]+ms[12], 0.5*ms[1]+0.5*ms[9]+ms[13], 0.5*ms[2]+0.5*ms[10]+ms[14]);
+      } else {
+        sp.position.set(0.5*ms[4]+0.5*ms[8]+ms[12], 0.5*ms[5]+0.5*ms[9]+ms[13], 0.5*ms[6]+0.5*ms[10]+ms[14]);
+      }
+      snakeGroup.add(sp);
+    }
+    numberGroup = null;
+    collisionNumbers = false;
+  } else if (_tubeMode) {
     for (var i = 0; i < transforms.length; i++) {
       var isHitSeg = _intersectionResult && _intersectionResult.hit && (i === _intersectionResult.a || i === _intersectionResult.b);
       var isDim = dimFrom >= 0 && i >= dimFrom;
@@ -1504,7 +1584,7 @@ function buildSnake(digits, fitCam, dimFrom) {
   snakeGroup.add(buildInnerRects(brightT, brightLBlock));
 
   // End markers on open figures (always full snake)
-  if (!figureClosed) snakeGroup.add(buildEndMarkers(transforms));
+  if (!figureClosed && !_tubeMode && !_lineMode) snakeGroup.add(buildEndMarkers(transforms));
   }
 
   if (savedQ && savedP) {
@@ -1953,15 +2033,17 @@ function _rotateCyclic(isRight) {
 }
 
 document.addEventListener('keydown', function(e) {
+  var ae = document.activeElement;
+  if (ae && ae !== codeInput && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
   if (rollMode && e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-      document.activeElement !== codeInput) {
+      ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     _rotateCyclic(e.key === 'ArrowRight');
     return;
   }
   if (rollMode && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
-      (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && document.activeElement !== codeInput) {
+      (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && ae !== codeInput) {
     e.preventDefault();
     var pos = _savedCursorPos !== null ? _savedCursorPos : codeInput.selectionStart;
     var newPos = e.key === 'ArrowRight' ? Math.min(codeInput.value.length, pos + 1) : Math.max(0, pos - 1);
@@ -1971,7 +2053,7 @@ document.addEventListener('keydown', function(e) {
     return;
   }
   if (rollMode && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
-      (e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement !== codeInput) {
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown') && ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     var pos = codeInput.selectionStart;
@@ -1984,14 +2066,14 @@ document.addEventListener('keydown', function(e) {
     }
     return;
   }
-  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && document.activeElement !== codeInput) {
+  if (rollMode && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     codeInput.selectionStart = codeInput.selectionEnd = e.key === 'ArrowRight' ? codeInput.value.length : 0;
     applyDisplay();
     return;
   }
-  if (rollMode && e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+  if (rollMode && e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey && ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     var pos = codeInput.selectionStart;
@@ -1999,7 +2081,7 @@ document.addEventListener('keydown', function(e) {
     if (tail > 0) { _undoPush(); codeInput.value = codeInput.value.slice(0, pos) + '0'.repeat(tail); codeInput.selectionStart = codeInput.selectionEnd = pos; applyDisplay(); }
     return;
   }
-  if (rollMode && /^[0-3]$/.test(e.key) && e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+  if (rollMode && /^[0-3]$/.test(e.key) && e.ctrlKey && !e.metaKey && !e.altKey && ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     var pos = codeInput.selectionStart, max = getLength() - 1;
@@ -2010,7 +2092,7 @@ document.addEventListener('keydown', function(e) {
     applyCode();
     return;
   }
-  if (rollMode && /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== codeInput) {
+  if (rollMode && /^[0-3]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && ae !== codeInput) {
     e.preventDefault();
     codeInput.focus();
     var pos = codeInput.selectionStart;
