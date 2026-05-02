@@ -451,7 +451,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'b874dd5';
+var _VERSION = 'c71eb13';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -1556,6 +1556,25 @@ function buildSnake(digits, fitCam, dimFrom) {
       var matColored = isDim ? MAT_A_DIM : ((_composeLBlock && _composeLBlock[i]) ? MAT_L : MAT_A);
       var mat = isHitSeg ? MAT_HIT : (i % 2 === 0 ? matColored : (isDim ? MAT_B_DIM : MAT_B));
       snakeGroup.add(buildTubeMesh(transforms[i], mat));
+    }
+    if (!figureClosed) {
+      var capGeo = new THREE.SphereGeometry(_tubeRadius, 10, 10);
+      // Free start: T[0] @ (0,0.5,0.5)
+      var m0 = transforms[0].elements;
+      var mat0 = (dimFrom >= 0 && 0 >= dimFrom) ? MAT_A_DIM : MAT_A;
+      var sp0 = new THREE.Mesh(capGeo, mat0);
+      sp0.position.set(0.5*m0[4]+0.5*m0[8]+m0[12], 0.5*m0[5]+0.5*m0[9]+m0[13], 0.5*m0[6]+0.5*m0[10]+m0[14]);
+      snakeGroup.add(sp0);
+      // Free end: depends on parity of last segment
+      var N = transforms.length, ml = transforms[N-1].elements;
+      var matL = (dimFrom >= 0 && N-1 >= dimFrom) ? ((N-1)%2===0 ? MAT_A_DIM : MAT_B_DIM) : ((N-1)%2===0 ? MAT_A : MAT_B);
+      var spL = new THREE.Mesh(capGeo, matL);
+      if ((N-1) % 2 === 0) {
+        spL.position.set(0.5*ml[4]+0.5*ml[8]+ml[12], 0.5*ml[5]+0.5*ml[9]+ml[13], 0.5*ml[6]+0.5*ml[10]+ml[14]);
+      } else {
+        spL.position.set(0.5*ml[0]+0.5*ml[8]+ml[12], 0.5*ml[1]+0.5*ml[9]+ml[13], 0.5*ml[2]+0.5*ml[10]+ml[14]);
+      }
+      snakeGroup.add(spL);
     }
     numberGroup = null;
     collisionNumbers = false;
