@@ -281,16 +281,17 @@ span.cursor-mark {
     <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
     <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
     <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
-    <span class="row-spacer"></span>
-    <button class="btn" id="toggle-tube" onclick="toggleTubeMode()" title="Toggle tube view">Tube</button>
-    <button class="btn" id="toggle-line" onclick="toggleLineMode()" title="Toggle line view">Line</button>
-    <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
   </div>
   <div id="edit-row">
     <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
     <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
     <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
     <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)" onclick="redoCode()" disabled>↪</button>
+    <span class="row-spacer"></span>
+    <button class="btn" id="toggle-tube" onclick="toggleTubeMode()" title="Toggle tube view">Tube</button>
+    <button class="btn" id="toggle-line" onclick="toggleLineMode()" title="Toggle line view">Line</button>
+    <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
+    <button class="btn" id="toggle-collision" onclick="toggleCollisionMode()" title="Collision detection: Strict (prism algorithm) / Loose (tube algorithm)">Coll:Strict</button>
   </div>
   <div id="error-msg"></div>
 </div>
@@ -442,7 +443,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '25c5d4b';
+var _VERSION = '97c66bc';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -592,6 +593,21 @@ var _tubeMode = false;
 var _lineMode = false;
 var _tubeRadius = 0.12;
 var _lineRadius = 0.06;
+var _collisionMode = 'strict'; // 'strict' = prism algo, 'loose' = tube algo
+
+function _syncCollisionBtn() {
+  var btn = document.getElementById('toggle-collision');
+  var strict = _collisionMode === 'strict';
+  btn.textContent = strict ? 'Coll:Strict' : 'Coll:Loose';
+  btn.style.background = strict ? '' : 'rgba(50,50,120,0.9)';
+  btn.style.color = strict ? '' : '#fff';
+}
+
+function toggleCollisionMode() {
+  _collisionMode = _collisionMode === 'strict' ? 'loose' : 'strict';
+  _syncCollisionBtn();
+  _rebuildCurrentView();
+}
 var MAT_LINE     = new THREE.MeshPhongMaterial({ color: 0xD42B2B, shininess: 120, specular: new THREE.Color(0x888888) });
 var MAT_LINE_DIM = new THREE.MeshPhongMaterial({ color: 0xD42B2B, transparent: true, opacity: 0.28, depthWrite: false });
 
@@ -611,6 +627,8 @@ function toggleTubeMode() {
   btn.style.color = _tubeMode ? '#fff' : '';
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
+  _collisionMode = (_tubeMode || _lineMode) ? 'loose' : 'strict';
+  _syncCollisionBtn();
   _rebuildCurrentView();
 }
 
@@ -630,6 +648,8 @@ function toggleLineMode() {
   _styleLineBtn();
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
+  _collisionMode = (_tubeMode || _lineMode) ? 'loose' : 'strict';
+  _syncCollisionBtn();
   _rebuildCurrentView();
 }
 
@@ -1468,7 +1488,7 @@ function buildSnake(digits, fitCam, dimFrom) {
   var _intersectionResult = null;
   try {
     var checkT = dimFrom >= 0 ? transforms.slice(0, dimFrom) : transforms;
-    _intersectionResult = (_tubeMode || _lineMode) ? checkTubeCollision(checkT, figureClosed) : checkIntersection(checkT);
+    _intersectionResult = _collisionMode === 'loose' ? checkTubeCollision(checkT, figureClosed) : checkIntersection(checkT);
     if (_intersectionResult.hit) {
       setError('Self-intersection: pieces ' + (_intersectionResult.a + 1) + ' and ' + (_intersectionResult.b + 1) + ' overlap.');
       codeInput.classList.add('invalid');
