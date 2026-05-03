@@ -451,7 +451,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'c71eb13';
+var _VERSION = '40b1762';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -1570,9 +1570,9 @@ function buildSnake(digits, fitCam, dimFrom) {
       var matL = (dimFrom >= 0 && N-1 >= dimFrom) ? ((N-1)%2===0 ? MAT_A_DIM : MAT_B_DIM) : ((N-1)%2===0 ? MAT_A : MAT_B);
       var spL = new THREE.Mesh(capGeo, matL);
       if ((N-1) % 2 === 0) {
-        spL.position.set(0.5*ml[4]+0.5*ml[8]+ml[12], 0.5*ml[5]+0.5*ml[9]+ml[13], 0.5*ml[6]+0.5*ml[10]+ml[14]);
-      } else {
         spL.position.set(0.5*ml[0]+0.5*ml[8]+ml[12], 0.5*ml[1]+0.5*ml[9]+ml[13], 0.5*ml[2]+0.5*ml[10]+ml[14]);
+      } else {
+        spL.position.set(0.5*ml[4]+0.5*ml[8]+ml[12], 0.5*ml[5]+0.5*ml[9]+ml[13], 0.5*ml[6]+0.5*ml[10]+ml[14]);
       }
       snakeGroup.add(spL);
     }
