@@ -469,7 +469,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '6cd51fc';
+var _VERSION = '34b4786';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -645,6 +645,12 @@ function createPrismGeometry() {
   return geo;
 }
 var BASE_GEO = createPrismGeometry();
+
+function _setBtnActive(id, active) {
+  var btn = document.getElementById(id);
+  btn.style.background = active ? 'rgba(50,50,120,0.9)' : '';
+  btn.style.color     = active ? '#fff' : '';
+}
 
 // ─── TUBE / LINE VIEW ──────────────────────────────────────────────────────────
 var _tubeMode = false;
@@ -2093,7 +2099,7 @@ function loadFigure(name, code, expectedCD) {
   _numberOffset = 0;
   if (showNumbers) {
     showNumbers = false;
-    document.getElementById('toggle-numbers').style.opacity = '0.5';
+    _setBtnActive('toggle-numbers', false);
   }
   _chiralModeActive = false; _preChiralCode = null;
   document.getElementById('chiral-indicator').classList.remove('active');
@@ -2266,43 +2272,32 @@ document.addEventListener('keydown', function(e) {
 });
 
 var autoRotate = true;
+_setBtnActive('toggle-autorotate', true);
 document.getElementById('toggle-autorotate').addEventListener('click', function() {
   autoRotate = !autoRotate;
-  this.style.opacity = autoRotate ? '1' : '0.5';
+  _setBtnActive('toggle-autorotate', autoRotate);
 });
 
 document.getElementById('toggle-numbers').addEventListener('click', function() {
   showNumbers = !showNumbers;
   if (!showNumbers) _numberOffset = 0;
-  this.style.opacity = showNumbers ? '1' : '0.5';
+  _setBtnActive('toggle-numbers', showNumbers);
   if (numberGroup) {
     numberGroup.visible = showNumbers || collisionNumbers;
     if (showNumbers) highlightNumberFaces(_hitSegments);
   }
 });
-document.getElementById('toggle-numbers').style.opacity = '0.5';
 
 function _setEditMode(on, keepUndo) {
   if (on && _composeMode) _exitComposeMode();
   rollMode = on;
   codeInput.readOnly = !on;
   if (on) lengthInput.readOnly = false;
-  var btnE = document.getElementById('toggle-fold');
-  if (on) {
-    btnE.style.opacity = '1';
-    btnE.style.background = 'rgba(180,100,20,0.5)';
-    btnE.style.borderColor = 'rgba(255,160,40,0.8)';
-    btnE.style.color = '#ffcc66';
-  } else {
-    btnE.style.opacity = '0.5';
-    btnE.style.background = '';
-    btnE.style.borderColor = '';
-    btnE.style.color = '';
-  }
+  _setBtnActive('toggle-fold', on);
   if (!keepUndo) { _undoStack = []; _redoStack = []; _updateUndoButton(); _updateRedoButton(); }
   if (on && autoRotate) {
     autoRotate = false;
-    document.getElementById('toggle-autorotate').style.opacity = '0.5';
+    _setBtnActive('toggle-autorotate', false);
   }
   if (!on) {
     codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
@@ -2327,8 +2322,6 @@ document.getElementById('toggle-fold').addEventListener('click', function() {
     applyCode();
   }
 });
-document.getElementById('toggle-fold').style.opacity = '0.5';
-document.getElementById('btn-compose').style.opacity = '0.5';
 
 document.addEventListener('selectionchange', function() {
   if (rollMode && document.activeElement === codeInput) {
@@ -5460,7 +5453,7 @@ function _enterComposeMode() {
 
   if (!showNumbers) {
     showNumbers = true;
-    document.getElementById('toggle-numbers').style.opacity = '1';
+    _setBtnActive('toggle-numbers', true);
     if (numberGroup) { numberGroup.visible = true; highlightNumberFaces(_hitSegments); }
   }
 
@@ -5468,11 +5461,7 @@ function _enterComposeMode() {
   _undoStack = []; _redoStack = [];
   _updateUndoButton(); _updateRedoButton();
 
-  var btnC = document.getElementById('btn-compose');
-  btnC.style.opacity = '1';
-  btnC.style.background = 'rgba(180,100,20,0.5)';
-  btnC.style.borderColor = 'rgba(255,160,40,0.8)';
-  btnC.style.color = '#ffcc66';
+  _setBtnActive('btn-compose', true);
   lengthInput.readOnly = false;
   _composeMode = true;
 }
@@ -5489,18 +5478,14 @@ function _exitComposeMode() {
   _updateUndoButton(); _updateRedoButton();
   if (showNumbers) {
     showNumbers = false;
-    document.getElementById('toggle-numbers').style.opacity = '0.5';
+    _setBtnActive('toggle-numbers', false);
     if (numberGroup) numberGroup.visible = false;
   }
   document.getElementById('compose-panel').style.display = 'none';
   document.getElementById('compose-entries').innerHTML = '';
   document.getElementById('compose-exit-row').style.display = '';
   document.getElementById('compose-log-prompt').style.display = 'none';
-  var btnC = document.getElementById('btn-compose');
-  btnC.style.opacity = '0.5';
-  btnC.style.background = '';
-  btnC.style.borderColor = '';
-  btnC.style.color = '';
+  _setBtnActive('btn-compose', false);
   lengthInput.readOnly = true;
   // Rebuild snake with normal coloring (no l-block highlight)
   var r = parseCode(codeInput.value);
