@@ -105,6 +105,13 @@ span.cursor-mark {
   background:rgba(20,20,45,0.85); color:#99aaee; border-radius:6px;
   font-size:12px; outline:none; text-align:center;
 }
+#angle-row {
+  display:flex; align-items:center; gap:6px; justify-content:center;
+  pointer-events:all; margin-bottom:8px;
+}
+.angle-label { color:#99aaee; font-size:12px; min-width:10px; }
+.angle-val   { color:#ddd; font-size:11px; min-width:32px; text-align:right; }
+.angle-slider { flex:1; min-width:60px; max-width:140px; cursor:pointer; }
 
 
 #left-panel {
@@ -293,6 +300,17 @@ span.cursor-mark {
     <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
     <button class="btn" id="toggle-collision" onclick="toggleCollisionMode()" title="Collision detection: Strict (prism algorithm) / Loose (tube algorithm)">Coll:Strict</button>
   </div>
+  <div id="angle-row">
+    <span class="angle-label">X</span>
+    <input id="angle-x" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span id="angle-x-val" class="angle-val">0°</span>
+    <span class="angle-label">Y</span>
+    <input id="angle-y" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span id="angle-y-val" class="angle-val">0°</span>
+    <span class="angle-label">Z</span>
+    <input id="angle-z" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span id="angle-z-val" class="angle-val">0°</span>
+  </div>
   <div id="error-msg"></div>
 </div>
 
@@ -451,7 +469,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '40b1762';
+var _VERSION = '6cd51fc';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -486,12 +504,14 @@ function _applyPan(dx, dy) {
   camera.lookAt(_cameraTarget);
 }
 
+var _canvasDrag = false;
 function onDragStart(x, y) {
   userInteracting = true;
+  _canvasDrag = true;
   _dragPrev.x = x; _dragPrev.y = y;
 }
 function onDragMove(x, y) {
-  if (!userInteracting) return;
+  if (!_canvasDrag) return;
   var dx = x - _dragPrev.x, dy = y - _dragPrev.y;
   _dragPrev.x = x; _dragPrev.y = y;
   if (_isPanning) {
@@ -499,9 +519,23 @@ function onDragMove(x, y) {
   } else if (snakeGroup) {
     snakeGroup.rotateOnWorldAxis(_rotAxisY, dx * 0.005);
     snakeGroup.rotateOnWorldAxis(_rotAxisX, dy * 0.005);
+    _syncAngleSliders();
   }
 }
-function onDragEnd() { userInteracting = false; _isPanning = false; }
+function onDragEnd() { userInteracting = false; _isPanning = false; _canvasDrag = false; }
+
+function _syncAngleSliders() {
+  if (!snakeGroup) return;
+  var r = snakeGroup.rotation;
+  var toDeg = function(rad) { return Math.round(rad * 180 / Math.PI); };
+  ['x','y','z'].forEach(function(ax) {
+    var deg = toDeg(r[ax]);
+    var sl = document.getElementById('angle-' + ax);
+    var vl = document.getElementById('angle-' + ax + '-val');
+    if (sl) sl.value = deg;
+    if (vl) vl.textContent = deg + '°';
+  });
+}
 
 renderer.domElement.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 renderer.domElement.addEventListener('mousedown', function(e) {
@@ -555,6 +589,22 @@ renderer.domElement.addEventListener('touchmove', function(e) {
 renderer.domElement.addEventListener('touchend', function(e) {
   if (e.touches.length === 0) onDragEnd();
 }, { passive: true });
+
+// ─── ANGLE SLIDERS ─────────────────────────────────────────────────────────────
+['x','y','z'].forEach(function(axis) {
+  var sl = document.getElementById('angle-' + axis);
+  if (!sl) return;
+  sl.addEventListener('pointerdown', function() {
+    userInteracting = true;
+    _syncAngleSliders();
+  });
+  sl.addEventListener('input', function() {
+    if (!snakeGroup) return;
+    snakeGroup.rotation[axis] = parseFloat(this.value) * Math.PI / 180;
+    document.getElementById('angle-' + axis + '-val').textContent = this.value + '°';
+  });
+  sl.addEventListener('pointerup', function() { userInteracting = false; });
+});
 
 // ─── LIGHTING ──────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0x334466, 1.2));
@@ -1183,39 +1233,57 @@ function buildSeamLines(transforms, lBlock) {
   for (var i=0; i<n; i++) {
     for (var j=i+1; j<n; j++) {
       for (var fi=0; fi<faceDefs.length; fi++) {
-        var f=faceDefs[fi];
-        ni.set(f.norm[0],f.norm[1],f.norm[2]).transformDirection(transforms[i]);
-        nj.set(f.norm[0],f.norm[1],f.norm[2]).transformDirection(transforms[j]);
-        if (ni.dot(nj) < 1-1e-4) continue;
-        for (var ei=0; ei<f.edges.length; ei++) {
-          var ec=f.edges[ei];
-          p0i.set(ec[0],ec[1],ec[2]).applyMatrix4(transforms[i]);
-          p1i.set(ec[3],ec[4],ec[5]).applyMatrix4(transforms[i]);
-          for (var ej=0; ej<f.edges.length; ej++) {
-            var ec2=f.edges[ej];
-            p0j.set(ec2[0],ec2[1],ec2[2]).applyMatrix4(transforms[j]);
-            p1j.set(ec2[3],ec2[4],ec2[5]).applyMatrix4(transforms[j]);
-            if ((p0i.distanceTo(p0j)<matchEps && p1i.distanceTo(p1j)<matchEps) ||
-                (p0i.distanceTo(p1j)<matchEps && p1i.distanceTo(p0j)<matchEps)) {
-              var r=1/matchEps;
-              var sk=[p0i.x,p0i.y,p0i.z,p1i.x,p1i.y,p1i.z].map(function(v){return Math.round(v*r);}).join(',');
-              if (!seen[sk]) {
-                seen[sk]=true;
-                var Q0=p0i.clone().addScaledVector(ni,eps);
-                var Q1=p1i.clone().addScaledVector(ni,eps);
-                var pos, nrm;
-                if (i % 2 === 0) { pos = posA; nrm = normA; }
-                else if (lBlock && lBlock[i]) { pos = posL; nrm = normL; }
-                else { pos = posB; nrm = normB; }
-                pos.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
-nrm.push(ni.x, ni.y, ni.z);
+        var fi_def=faceDefs[fi];
+        ni.set(fi_def.norm[0],fi_def.norm[1],fi_def.norm[2]).transformDirection(transforms[i]);
+        for (var fj=0; fj<faceDefs.length; fj++) {
+          var fj_def=faceDefs[fj];
+          nj.set(fj_def.norm[0],fj_def.norm[1],fj_def.norm[2]).transformDirection(transforms[j]);
+          if (Math.abs(ni.dot(nj)) < 1-1e-4) continue;
+          for (var ei=0; ei<fi_def.edges.length; ei++) {
+            var ec=fi_def.edges[ei];
+            p0i.set(ec[0],ec[1],ec[2]).applyMatrix4(transforms[i]);
+            p1i.set(ec[3],ec[4],ec[5]).applyMatrix4(transforms[i]);
+            for (var ej=0; ej<fj_def.edges.length; ej++) {
+              var ec2=fj_def.edges[ej];
+              p0j.set(ec2[0],ec2[1],ec2[2]).applyMatrix4(transforms[j]);
+              p1j.set(ec2[3],ec2[4],ec2[5]).applyMatrix4(transforms[j]);
+              if ((p0i.distanceTo(p0j)<matchEps && p1i.distanceTo(p1j)<matchEps) ||
+                  (p0i.distanceTo(p1j)<matchEps && p1i.distanceTo(p0j)<matchEps)) {
+                var r=1/matchEps;
+                var sk=[p0i.x,p0i.y,p0i.z,p1i.x,p1i.y,p1i.z].map(function(v){return Math.round(v*r);}).join(',');
+                if (!seen[sk]) {
+                  seen[sk]=true;
+                  var Q0=p0i.clone().addScaledVector(ni,eps);
+                  var Q1=p1i.clone().addScaledVector(ni,eps);
+                  var pos, nrm;
+                  if (i % 2 === 0) { pos = posA; nrm = normA; }
+                  else if (lBlock && lBlock[i]) { pos = posL; nrm = normL; }
+                  else { pos = posB; nrm = normB; }
+                  pos.push(Q0.x,Q0.y,Q0.z, Q1.x,Q1.y,Q1.z);
+                  nrm.push(ni.x, ni.y, ni.z);
+                }
+                // For face-to-face (opposite normals), also draw from segment j's side
+                if (ni.dot(nj) < 0) {
+                  var skj = 'j:' + sk;
+                  if (!seen[skj]) {
+                    seen[skj]=true;
+                    var Q0j=p0j.clone().addScaledVector(nj,eps);
+                    var Q1j=p1j.clone().addScaledVector(nj,eps);
+                    var posj, nrmj;
+                    if (j % 2 === 0) { posj = posA; nrmj = normA; }
+                    else if (lBlock && lBlock[j]) { posj = posL; nrmj = normL; }
+                    else { posj = posB; nrmj = normB; }
+                    posj.push(Q0j.x,Q0j.y,Q0j.z, Q1j.x,Q1j.y,Q1j.z);
+                    nrmj.push(nj.x, nj.y, nj.z);
+                  }
+                }
               }
-            }
-          }
-        }
-      }
-    }
-  }
+            }  // ej
+          }  // ei
+        }  // fj
+      }  // fi
+    }  // j
+  }  // i
   return { posA:posA, normA:normA, posB:posB, normB:normB, posL:posL, normL:normL };
 }
 
@@ -1980,6 +2048,7 @@ function animate(now) {
     lastTime = now || 0;
     if (autoRotate && !userInteracting && snakeGroup) {
       snakeGroup.rotateOnWorldAxis(_rotAxisY, dt * 0.35);
+      _syncAngleSliders();
     }
     renderer.render(scene, camera);
     _processNextThumbnail();
