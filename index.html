@@ -474,7 +474,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '198976a';
+var _VERSION = '46e3f1b';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -2168,10 +2168,8 @@ function _rotateCyclic(isRight) {
   codeInput.value = newDigits.join('');
   autoResizeCode();
   if (rollMode && p >= 0) {
-    var len = codeInput.value.length;
-    var newP = ((p === 0 && !isRight) || (p === len && isRight)) ? p : p + (isRight ? 1 : -1);
-    codeInput.selectionStart = codeInput.selectionEnd = newP;
-    applyDisplay(newP);
+    codeInput.selectionStart = codeInput.selectionEnd = p;
+    applyDisplay(p);
   } else {
     applyCode();
   }
