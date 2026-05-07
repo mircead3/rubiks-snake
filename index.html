@@ -474,7 +474,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '636a429';
+var _VERSION = '198976a';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -692,11 +692,10 @@ var _lineRadius = 0.06;
 var _collisionMode = 'strict'; // 'strict' = prism algo, 'loose' = tube algo
 
 function _syncCollisionBtn() {
-  var btn = document.getElementById('toggle-collision');
   var strict = _collisionMode === 'strict';
+  var btn = document.getElementById('toggle-collision');
   btn.textContent = strict ? 'Coll:Strict' : 'Coll:Loose';
-  btn.style.background = strict ? '' : 'rgba(50,50,120,0.9)';
-  btn.style.color = strict ? '' : '#fff';
+  _setBtnActive('toggle-collision', !strict);
 }
 
 function toggleCollisionMode() {
@@ -716,29 +715,17 @@ function _syncRadiusInput() {
 
 function toggleTubeMode() {
   _tubeMode = !_tubeMode;
-  if (_tubeMode && _lineMode) { _lineMode = false; _styleLineBtn(); }
-  var btn = document.getElementById('toggle-tube');
-  btn.style.background = _tubeMode ? 'rgba(50,50,120,0.9)' : '';
-  btn.style.color = _tubeMode ? '#fff' : '';
+  if (_tubeMode && _lineMode) { _lineMode = false; _setBtnActive('toggle-line', false); }
+  _setBtnActive('toggle-tube', _tubeMode);
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
   _rebuildCurrentView();
 }
 
-function _styleLineBtn() {
-  var btn = document.getElementById('toggle-line');
-  btn.style.background = _lineMode ? 'rgba(50,50,120,0.9)' : '';
-  btn.style.color = _lineMode ? '#fff' : '';
-}
-
 function toggleLineMode() {
   _lineMode = !_lineMode;
-  if (_lineMode && _tubeMode) {
-    _tubeMode = false;
-    var tb = document.getElementById('toggle-tube');
-    tb.style.background = ''; tb.style.color = '';
-  }
-  _styleLineBtn();
+  if (_lineMode && _tubeMode) { _tubeMode = false; _setBtnActive('toggle-tube', false); }
+  _setBtnActive('toggle-line', _lineMode);
   _syncRadiusInput();
   document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
   _rebuildCurrentView();
@@ -1423,12 +1410,6 @@ var _lastTransforms = null; // saved so highlightNumberFaces can update without 
 var _composeLabels = null;  // custom per-segment labels in compose mode; null = use offset
 var _composeLBlock = null;  // boolean array: true for segments belonging to l-block
 var _composeLColor = -1;    // current l-block color hex
-function _pickComposeLColor() {
-  var choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor && c !== _composeLColor; });
-  if (!choices.length) choices = SNAKE_COLORS.filter(function(c) { return c !== _lastSnakeColor; });
-  _composeLColor = choices[Math.floor(Math.random() * choices.length)];
-  _setLColor(_composeLColor);
-}
 
 // Texture cache: label (integer) → CanvasTexture (white text on transparent bg).
 // Reused across figure loads; never disposed (small and bounded by max segment count).
