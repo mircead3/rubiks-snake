@@ -114,9 +114,14 @@ span.cursor-mark {
   display:flex; align-items:center; gap:6px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
 }
-.angle-label { color:#99aaee; font-size:12px; min-width:10px; }
-.angle-val   { color:#ddd; font-size:11px; min-width:32px; text-align:right; }
-.angle-slider { flex:1; min-width:60px; max-width:140px; cursor:pointer; }
+.angle-label {
+  color:#99aaee; font-size:12px; padding:3px 7px; border-radius:4px;
+  cursor:ew-resize; user-select:none; border:1px solid rgba(140,140,255,0.2);
+  transition:background 0.12s;
+}
+.angle-label:hover { background:rgba(140,140,255,0.12); color:#ccd; }
+.angle-label.dragging { background:rgba(50,50,120,0.9); color:#fff; border-color:rgba(140,140,255,0.5); }
+.angle-val { color:#ddd; font-size:11px; min-width:34px; }
 
 
 #left-panel {
@@ -308,14 +313,11 @@ span.cursor-mark {
     <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">C</button>
   </div>
   <div id="angle-row">
-    <span class="angle-label">X</span>
-    <input id="angle-x" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span class="angle-label" id="angle-lbl-x">X</span>
     <span id="angle-x-val" class="angle-val">0°</span>
-    <span class="angle-label">Y</span>
-    <input id="angle-y" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span class="angle-label" id="angle-lbl-y">Y</span>
     <span id="angle-y-val" class="angle-val">0°</span>
-    <span class="angle-label">Z</span>
-    <input id="angle-z" class="angle-slider" type="range" min="-180" max="180" value="0" step="1">
+    <span class="angle-label" id="angle-lbl-z">Z</span>
     <span id="angle-z-val" class="angle-val">0°</span>
   </div>
   <div id="error-msg"></div>
@@ -378,7 +380,7 @@ span.cursor-mark {
       <tr><td>Shift+drag / right-drag</td><td>Pan</td></tr>
       <tr><td>Scroll / pinch</td><td>Zoom</td></tr>
       <tr><td>Two-finger swipe</td><td>Pan (touch)</td></tr>
-      <tr><td>X / Y / Z sliders</td><td>Set the rotation angle around each world axis. Stay in sync with drag.</td></tr>
+      <tr><td>X / Y / Z drag</td><td>Click and drag left/right on an axis label to rotate around that axis. Each label controls exactly one angle; values stay in sync with canvas drag and snap to ±180° on release.</td></tr>
     </table>
 
     <h3>Code bar</h3>
@@ -472,7 +474,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '930372c';
+var _VERSION = '636a429';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
@@ -533,9 +535,7 @@ function _syncAngleSliders() {
   var toDeg = function(rad) { return Math.round(rad * 180 / Math.PI); };
   ['x','y','z'].forEach(function(ax) {
     var deg = toDeg(r[ax]);
-    var sl = document.getElementById('angle-' + ax);
     var vl = document.getElementById('angle-' + ax + '-val');
-    if (sl) sl.value = deg;
     if (vl) vl.textContent = deg + '°';
   });
 }
@@ -545,7 +545,10 @@ renderer.domElement.addEventListener('mousedown', function(e) {
   _isPanning = (e.button === 2 || e.shiftKey);
   onDragStart(e.clientX, e.clientY);
 });
-window.addEventListener('mousemove', function(e) { onDragMove(e.clientX, e.clientY); });
+window.addEventListener('mousemove', function(e) {
+  if (e.buttons === 0) { if (_canvasDrag) onDragEnd(); return; }
+  onDragMove(e.clientX, e.clientY);
+});
 window.addEventListener('mouseup',   onDragEnd);
 
 // Wheel zoom — proportional to deltaY so trackpad is gentle, mouse wheel reasonable
@@ -593,21 +596,47 @@ renderer.domElement.addEventListener('touchend', function(e) {
   if (e.touches.length === 0) onDragEnd();
 }, { passive: true });
 
-// ─── ANGLE SLIDERS ─────────────────────────────────────────────────────────────
-['x','y','z'].forEach(function(axis) {
-  var sl = document.getElementById('angle-' + axis);
-  if (!sl) return;
-  sl.addEventListener('pointerdown', function() {
-    userInteracting = true;
-    _syncAngleSliders();
+// ─── ANGLE LABEL DRAG ──────────────────────────────────────────────────────────
+(function() {
+  var _axes = { 'angle-lbl-x': 'x', 'angle-lbl-y': 'y', 'angle-lbl-z': 'z' };
+  Object.keys(_axes).forEach(function(id) {
+    var el = document.getElementById(id);
+    var axis = _axes[id];
+    var _lastX;
+    el.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      _lastX = e.clientX;
+      userInteracting = true;
+      el.classList.add('dragging');
+      el.setPointerCapture(e.pointerId);
+    });
+    function _release() {
+      if (!el.classList.contains('dragging')) return;
+      el.classList.remove('dragging');
+      userInteracting = false;
+      if (snakeGroup) {
+        var PI2 = 2 * Math.PI;
+        ['x','y','z'].forEach(function(ax) {
+          var a = snakeGroup.rotation[ax] % PI2;
+          if (a > Math.PI) a -= PI2;
+          if (a < -Math.PI) a += PI2;
+          snakeGroup.rotation[ax] = a;
+        });
+        _syncAngleSliders();
+      }
+    }
+    el.addEventListener('pointermove', function(e) {
+      if (e.buttons === 0) { _release(); return; }
+      if (!el.classList.contains('dragging') || !snakeGroup) return;
+      var dx = e.clientX - _lastX;
+      _lastX = e.clientX;
+      snakeGroup.rotation[axis] += dx * Math.PI / 180;
+      _syncAngleSliders();
+    });
+    el.addEventListener('pointerup',     _release);
+    el.addEventListener('pointercancel', _release);
   });
-  sl.addEventListener('input', function() {
-    if (!snakeGroup) return;
-    snakeGroup.rotation[axis] = parseFloat(this.value) * Math.PI / 180;
-    document.getElementById('angle-' + axis + '-val').textContent = this.value + '°';
-  });
-  sl.addEventListener('pointerup', function() { userInteracting = false; });
-});
+})();
 
 // ─── LIGHTING ──────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0x334466, 1.2));
