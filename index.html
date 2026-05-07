@@ -10,7 +10,7 @@ body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-se
 canvas { display:block; touch-action:none; }
 
 #ui {
-  position:absolute; top:20px; left:280px; right:280px;
+  position:absolute; top:20px; left:412px; right:280px;
   text-align:center; user-select:none; white-space:nowrap;
 }
 #right-panel {
@@ -19,12 +19,22 @@ canvas { display:block; touch-action:none; }
   pointer-events:none; user-select:none; width:260px;
 }
 #right-panel > * { pointer-events:all; }
-#title-row { margin-bottom:12px; }
-#title-row h1 {
-  color:#d8d8ff; font-size:18px; font-weight:400; letter-spacing:5px;
-  text-transform:uppercase; text-shadow:0 0 20px rgba(120,120,255,0.5);
-  display:inline;
+#btn-column {
+  position:absolute; top:20px; left:284px; width:fit-content;
+  display:flex; flex-direction:column; align-items:stretch; gap:4px;
+  pointer-events:none; user-select:none;
 }
+#btn-column > * { pointer-events:all; }
+#btn-column .btn { width:100%; box-sizing:border-box; text-align:left; }
+.col-row { display:flex; gap:4px; pointer-events:all; }
+.col-row .btn { width:auto; flex:1; padding-top:3px; padding-bottom:3px; }
+#col-title {
+  color:#d8d8ff; font-size:10px; font-weight:400; letter-spacing:3px;
+  text-transform:uppercase; text-align:center;
+  text-shadow:0 0 20px rgba(120,120,255,0.5);
+  margin-bottom:2px; opacity:0.85; pointer-events:none;
+}
+.col-sep { height:1px; background:rgba(140,140,200,0.2); margin:2px 0; pointer-events:none; }
 #controls-row {
   display:flex; align-items:center; gap:8px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
@@ -95,15 +105,10 @@ span.cursor-mark {
 }
 .btn:hover { background:rgba(50,50,120,0.7); color:#fff; }
 .btn:disabled { opacity:0.3; cursor:default; pointer-events:none; }
-#view-row, #edit-row {
-  display:flex; align-items:center; gap:8px; justify-content:center;
-  pointer-events:all; margin-bottom:8px;
-}
-.row-spacer { flex:0 0 14px; }
 #tube-radius {
-  width:62px; padding:6px 6px; border:1px solid rgba(140,140,255,0.35);
+  width:100%; padding:6px 6px; border:1px solid rgba(140,140,255,0.35);
   background:rgba(20,20,45,0.85); color:#99aaee; border-radius:6px;
-  font-size:12px; outline:none; text-align:center;
+  font-size:12px; outline:none; text-align:center; box-sizing:border-box;
 }
 #angle-row {
   display:flex; align-items:center; gap:6px; justify-content:center;
@@ -266,10 +271,32 @@ span.cursor-mark {
 </head>
 <body>
 
-<div id="ui">
-  <div id="title-row">
-    <h1>Rubik's Snake</h1>
+<div id="btn-column">
+  <div id="col-title">Rubik's Snake</div>
+  <div class="col-sep"></div>
+  <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">? Help</button>
+  <div class="col-sep"></div>
+  <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
+  <button class="btn" id="btn-copy" title="Copy code to clipboard">Copy</button>
+  <button class="btn" id="btn-image" title="Download image of current view" onclick="downloadImage()">Image</button>
+  <div class="col-sep"></div>
+  <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳ Rotate</button>
+  <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
+  <div class="col-sep"></div>
+  <button class="btn" id="toggle-tube" onclick="toggleTubeMode()" title="Toggle tube view">Tube</button>
+  <button class="btn" id="toggle-line" onclick="toggleLineMode()" title="Toggle line view">Line</button>
+  <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
+  <button class="btn" id="toggle-collision" onclick="toggleCollisionMode()" title="Collision detection: Strict (prism algorithm) / Loose (tube algorithm)">Coll:Strict</button>
+  <div class="col-sep"></div>
+  <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
+  <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
+  <div class="col-row">
+    <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
+    <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)" onclick="redoCode()" disabled>↪</button>
   </div>
+</div>
+
+<div id="ui">
   <div id="controls-row">
     <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
     <input id="length-input" type="number" min="2" max="200" value="24" readonly>
@@ -279,26 +306,6 @@ span.cursor-mark {
     </div>
     <span id="closing-digit"></span>
     <button id="chiral-indicator" onclick="toggleChiral()" title="Show mirror image (swap 1↔3)">C</button>
-  </div>
-  <div id="view-row">
-    <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
-    <button class="btn" id="btn-copy" title="Copy code to clipboard">Copy</button>
-    <button class="btn" id="btn-image" title="Download image of current view" onclick="downloadImage()">Image</button>
-    <span class="row-spacer"></span>
-    <button class="btn" id="toggle-autorotate" title="Toggle automatic rotation">⟳</button>
-    <button class="btn" id="toggle-numbers" title="Show segment numbers">1,2,3</button>
-    <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">?</button>
-  </div>
-  <div id="edit-row">
-    <button class="btn" id="toggle-fold" title="Edit mode: edit code and fold snake up to cursor position">Edit</button>
-    <button class="btn" id="btn-compose" title="Compose: attach a closed loop to the current figure">Compose</button>
-    <button class="btn" id="btn-undo" title="Undo last edit (Ctrl+Z)" onclick="undoCode()" disabled>↩</button>
-    <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)" onclick="redoCode()" disabled>↪</button>
-    <span class="row-spacer"></span>
-    <button class="btn" id="toggle-tube" onclick="toggleTubeMode()" title="Toggle tube view">Tube</button>
-    <button class="btn" id="toggle-line" onclick="toggleLineMode()" title="Toggle line view">Line</button>
-    <input id="tube-radius" type="number" min="0.02" max="0.45" step="0.01" value="0.12" title="Tube radius" readonly>
-    <button class="btn" id="toggle-collision" onclick="toggleCollisionMode()" title="Collision detection: Strict (prism algorithm) / Loose (tube algorithm)">Coll:Strict</button>
   </div>
   <div id="angle-row">
     <span class="angle-label">X</span>
@@ -371,9 +378,10 @@ span.cursor-mark {
       <tr><td>Shift+drag / right-drag</td><td>Pan</td></tr>
       <tr><td>Scroll / pinch</td><td>Zoom</td></tr>
       <tr><td>Two-finger swipe</td><td>Pan (touch)</td></tr>
+      <tr><td>X / Y / Z sliders</td><td>Set the rotation angle around each world axis. Stay in sync with drag.</td></tr>
     </table>
 
-    <h3>Top row</h3>
+    <h3>Code bar</h3>
     <table>
       <tr><td>Name</td><td>Figure name — populated when a figure is loaded; edit before saving</td></tr>
       <tr><td>Code box</td><td>Joint angles: <code>0</code>=straight <code>1</code>=90° <code>2</code>=180° <code>3</code>=270°. One digit per joint (segments−1 digits total)</td></tr>
@@ -381,18 +389,18 @@ span.cursor-mark {
       <tr><td>C</td><td>Appears when the figure's code is not equivalent to its mirror image (swap 1↔3 in joints). Click to toggle the mirror view. A superscript <strong>*</strong> means the 3D shape is geometrically chiral — it cannot be rotated to match its mirror image.</td></tr>
     </table>
 
-    <h3>Second row</h3>
+    <h3>Button column</h3>
     <table>
+      <tr><td>? Help</td><td>This help page</td></tr>
       <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
       <tr><td>Copy</td><td>Copy the current code to the clipboard.</td></tr>
       <tr><td>Image</td><td>Download a PNG image of the current view. The file is named after the current figure.</td></tr>
-      <tr><td>⟳</td><td>Toggle auto-rotation</td></tr>
+      <tr><td>⟳ Rotate</td><td>Toggle auto-rotation</td></tr>
       <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
-      <tr><td>?</td><td>This help page</td></tr>
-    </table>
-
-    <h3>Third row</h3>
-    <table>
+      <tr><td>Tube</td><td>Toggle tube view: renders the snake as a continuous tube following the center path of each segment.</td></tr>
+      <tr><td>Line</td><td>Toggle line view: renders the snake as a 3D polyline — cylinders connecting the face centers of adjacent segments, with spheres at each joint.</td></tr>
+      <tr><td>Radius</td><td>Tube or line thickness. Editable when Tube or Line is active. Default: 0.12 for tube (min 0.02), 0.06 for line (min 0.01).</td></tr>
+      <tr><td>Coll:Strict / Coll:Loose</td><td>Toggle collision detection algorithm. <strong>Strict</strong> (default) uses the precise prism geometry. <strong>Loose</strong> uses tube endpoint proximity — useful when exploring configurations that would be flagged as intersecting in strict mode.</td></tr>
       <tr><td>Edit</td><td>Toggle edit mode: enables code editing. The cursor position controls how much of the snake is shown at full brightness — segments up to the cursor are fully lit, the rest are dimmed. A black square marks the cursor position on the snake. Edit mode can also be entered by clicking in the code box. Auto-rotation stops on entry.<br><br><strong>Cursor mark</strong> — when you leave the code box, your cursor position is saved as a gold bar. Clicking the code box returns the cursor there.</td></tr>
       <tr><td>Compose</td><td>Toggle compose mode: attach a closed loop onto the current figure. Snake <strong>a</strong> is the base figure; snake <strong>b</strong> is the closed loop to attach. Click any closed figure in a list to select it as snake b. Choose the joining segments using the two selectors. The result is shown live; snake b's segments appear in a distinct color. Each selector change is individually undoable.<br><br>
         <strong>↔ (reverse)</strong> — next to the b selector. Toggles a geometrically distinct attachment: snake b orientation is reversed. For a given (a, b) pair this can produce a result unreachable by any normal composition. Resets when a new loop is selected.<br><br>
@@ -400,12 +408,7 @@ span.cursor-mark {
         <strong>Join</strong> — finalizes the composition: the result becomes the new base snake and the right panel resets to accept the next loop.<br><br>
         <strong>Adding more loops</strong> — after the first composition, clicking another closed figure adds it as a second loop attached to the result, and so on. Each added loop appears in the right panel; only the last one has active controls. Clicking ✕ on the last entry removes it (undoable).<br><br>
         <strong>Exit</strong> — ends the compose session. If any joins were made, offers to download a log: a plain-text record of the base snake, each loop with its a/b/↔/C settings, and the result code after each step. You can edit the filename before downloading. Clicking ⊕ or Edit exits immediately without a log prompt.</td></tr>
-      <tr><td>↩</td><td>Undo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Cmd+Z</code>.</td></tr>
-      <tr><td>↪</td><td>Redo (re-apply an undone edit). Also <code>Ctrl+Y</code> / <code>Cmd+Y</code>. Cleared when a new edit is made.</td></tr>
-      <tr><td>Tube</td><td>Toggle tube view: renders the snake as a continuous tube following the center path of each segment.</td></tr>
-      <tr><td>Line</td><td>Toggle line view: renders the snake as a 3D polyline — cylinders connecting the face centers of adjacent segments, with spheres at each joint.</td></tr>
-      <tr><td>Radius</td><td>Tube or line thickness. Editable when Tube or Line is active. Default: 0.12 for tube (min 0.02), 0.06 for line (min 0.01).</td></tr>
-      <tr><td>Coll:Strict / Coll:Loose</td><td>Toggle collision detection algorithm. <strong>Strict</strong> (default) uses the precise prism geometry. <strong>Loose</strong> uses tube endpoint proximity — useful when exploring configurations that would be flagged as intersecting in strict mode.</td></tr>
+      <tr><td>↩ / ↪</td><td>Undo / Redo the last code edit or composition. Also <code>Ctrl+Z</code> / <code>Ctrl+Y</code> (or <code>Cmd</code>). Redo is cleared when a new edit is made.</td></tr>
     </table>
 
     <h3>Edit mode shortcuts</h3>
@@ -469,7 +472,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '34b4786';
+var _VERSION = '930372c';
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111118);
