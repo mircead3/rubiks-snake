@@ -7,7 +7,7 @@
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-serif; }
-canvas { display:block; touch-action:none; }
+canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; pointer-events:none; }
 
 #ui {
   position:absolute; top:20px; left:412px; right:280px;
@@ -460,7 +460,7 @@ span.cursor-mark {
 // ─── SCENE SETUP ───────────────────────────────────────────────────────────────
 var renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+  renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, alpha: true });
 } catch(e) {
   document.body.innerHTML = '<div style="color:#f88;padding:20px;font-size:16px">WebGL init failed: ' + e + '</div>';
   throw e;
@@ -474,10 +474,10 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '46e3f1b';
+var _VERSION = 'a0594af';
 
 var scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111118);
+// scene.background left null so canvas is transparent over the body background
 
 
 var camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500);
@@ -540,8 +540,12 @@ function _syncAngleSliders() {
   });
 }
 
-renderer.domElement.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-renderer.domElement.addEventListener('mousedown', function(e) {
+function _isUITarget(el) {
+  return el && el.closest && el.closest('#ui, #btn-column, #left-panel, #right-panel, #help-modal');
+}
+window.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+window.addEventListener('mousedown', function(e) {
+  if (_isUITarget(e.target)) return;
   _isPanning = (e.button === 2 || e.shiftKey);
   onDragStart(e.clientX, e.clientY);
 });
@@ -552,7 +556,8 @@ window.addEventListener('mousemove', function(e) {
 window.addEventListener('mouseup',   onDragEnd);
 
 // Wheel zoom — proportional to deltaY so trackpad is gentle, mouse wheel reasonable
-renderer.domElement.addEventListener('wheel', function(e) {
+window.addEventListener('wheel', function(e) {
+  if (_isUITarget(e.target)) return;
   e.preventDefault();
   camera.position.multiplyScalar(Math.pow(1.001, e.deltaY));
   camera.position.clampLength(1, 300);
@@ -561,7 +566,8 @@ renderer.domElement.addEventListener('wheel', function(e) {
 // Touch: one finger = rotate, two fingers = pinch-zoom + pan
 var _pinchDist0 = 0;
 var _pinchMid0 = { x: 0, y: 0 };
-renderer.domElement.addEventListener('touchstart', function(e) {
+window.addEventListener('touchstart', function(e) {
+  if (_isUITarget(e.target)) return;
   if (e.touches.length === 1) {
     _isPanning = false;
     onDragStart(e.touches[0].clientX, e.touches[0].clientY);
@@ -574,7 +580,7 @@ renderer.domElement.addEventListener('touchstart', function(e) {
     _pinchMid0.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
   }
 }, { passive: true });
-renderer.domElement.addEventListener('touchmove', function(e) {
+window.addEventListener('touchmove', function(e) {
   if (e.touches.length === 1) {
     onDragMove(e.touches[0].clientX, e.touches[0].clientY);
   } else if (e.touches.length === 2) {
@@ -592,7 +598,7 @@ renderer.domElement.addEventListener('touchmove', function(e) {
     _pinchMid0.x = midX; _pinchMid0.y = midY;
   }
 }, { passive: true });
-renderer.domElement.addEventListener('touchend', function(e) {
+window.addEventListener('touchend', function(e) {
   if (e.touches.length === 0) onDragEnd();
 }, { passive: true });
 
