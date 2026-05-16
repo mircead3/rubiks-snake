@@ -404,11 +404,13 @@ span.cursor-mark {
     <h3>Button column</h3>
     <table>
       <tr><td>? Help</td><td>This help page</td></tr>
-      <tr><td>Save</td><td>Save the current name and code to My List (bottom of left panel). Updates the entry if the name already exists.</td></tr>
+      <tr><td>Collections</td><td>Opens a popup menu listing all built-in figure sets. Click a name to show its figures in the left panel; click again to hide. Button is highlighted while a collection is active.</td></tr>
+      <tr><td>Load file</td><td>Load one or more <code>.txt</code> figure files; each appears as a tab in the left panel.</td></tr>
+      <tr><td>Save</td><td>Save the current name and code to My List. Updates the entry if the name already exists.</td></tr>
       <tr><td>Copy</td><td>Copy the current code to the clipboard.</td></tr>
       <tr><td>Image</td><td>Download a PNG image of the current view. The file is named after the current figure.</td></tr>
       <tr><td>⟳ Rotate</td><td>Toggle auto-rotation</td></tr>
-      <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection.</td></tr>
+      <tr><td>1,2,3</td><td>Toggle segment number labels. While on, labels persist through Alt+rotations — each segment keeps its number. Numbers also appear temporarily on self-intersection. Disabled in Tube and Line modes.</td></tr>
       <tr><td>Tube</td><td>Toggle tube view: renders the snake as a continuous tube following the center path of each segment.</td></tr>
       <tr><td>Line</td><td>Toggle line view: renders the snake as a 3D polyline — cylinders connecting the face centers of adjacent segments, with spheres at each joint.</td></tr>
       <tr><td>Radius</td><td>Tube or line thickness. Editable when Tube or Line is active. Default: 0.12 for tube (min 0.02), 0.06 for line (min 0.01).</td></tr>
@@ -436,10 +438,8 @@ span.cursor-mark {
 
     <h3>Left panel</h3>
     <table>
-      <tr><td>Collections</td><td>Built-in figure sets (amber tabs) — always available</td></tr>
-      <tr><td>Load file</td><td>Load one or more <code>.txt</code> figure files; each gets a blue tab</td></tr>
-      <tr><td>Click tab</td><td>Show / hide the figures in that collection or file</td></tr>
-      <tr><td>My list</td><td>Your personal working list — figures saved here with the Save button; name the list using the text box</td></tr>
+      <tr><td>Click tab</td><td>Show / hide the figures in a loaded file</td></tr>
+      <tr><td>My list</td><td>Your personal working list — appears once the first figure is saved. Name the list using the text box.</td></tr>
       <tr><td>↓ Download</td><td>Download My List as a <code>.txt</code> file using the list name</td></tr>
       <tr><td>Click figure</td><td>Load and render it</td></tr>
       <tr><td>× button</td><td>Remove a figure from the list (undo available for 5 seconds)</td></tr>
@@ -484,7 +484,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'c9e9a04';
+var _VERSION = '7324623';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
