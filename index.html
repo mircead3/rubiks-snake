@@ -10,8 +10,8 @@ body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-se
 canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; pointer-events:none; }
 
 #ui {
-  position:absolute; top:20px; left:170px; right:280px;
-  text-align:center; user-select:none; white-space:nowrap;
+  position:absolute; top:20px; left:170px; right:280px; z-index:1;
+  text-align:center; user-select:none; white-space:nowrap; pointer-events:none;
 }
 #right-panel {
   position:absolute; top:20px; right:16px;
@@ -48,8 +48,9 @@ canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; p
 .coll-item.active { background:rgba(45,35,10,0.9); color:#ddbb77; }
 #controls-row {
   display:flex; align-items:flex-start; gap:8px; justify-content:center;
-  pointer-events:all; margin-bottom:8px;
+  pointer-events:none; margin-bottom:8px;
 }
+#controls-row > * { pointer-events:auto; }
 #controls-row label { color:#8899cc; font-size:12px; }
 #name-input {
   width:100px; padding:7px 8px; background:rgba(20,20,40,0.9);
@@ -125,8 +126,9 @@ span.cursor-mark {
 }
 #angle-row {
   display:flex; align-items:center; gap:6px; justify-content:center;
-  pointer-events:all; margin-bottom:8px;
+  pointer-events:none; margin-bottom:8px;
 }
+#angle-row > * { pointer-events:auto; }
 .angle-label {
   color:#99aaee; font-size:12px; padding:3px 7px; border-radius:4px;
   cursor:ew-resize; user-select:none; border:1px solid rgba(140,140,255,0.2);
@@ -484,7 +486,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '4352ec1';
+var _VERSION = '4b0d84a';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1865,6 +1867,7 @@ codeInput.addEventListener('beforeinput', function(e) {
 codeInput.addEventListener('paste', function(e) {
   e.preventDefault();
   var raw = (e.clipboardData || window.clipboardData).getData('text');
+  raw = raw.replace(/\([0-3]\)\s*$/, '');  // strip trailing closing digit notation e.g. (2)
   var filtered = raw.replace(/[^0-3]/g, '');
   if (!filtered) return;
   _undoPush();
@@ -1881,7 +1884,7 @@ codeInput.addEventListener('paste', function(e) {
   codeInput.value = newCode;
   codeInput.selectionStart = codeInput.selectionEnd = Math.min(s0 + filtered.length, newCode.length);
   autoResizeCode();
-  applyCode();
+  applyCode(true);
 });
 codeInput.addEventListener('blur', function() {
   _savedCursorPos = codeInput.selectionStart;
@@ -1954,12 +1957,15 @@ function autoResizeCode() {
   var sh = codeInput.scrollHeight;
   codeInput.style.height = sh + 'px';
   var multiLine = sh > 35;
-  var align = multiLine ? '' : 'center';
-  var mb    = multiLine ? '' : '6px';
-  document.getElementById('closing-digit').style.alignSelf    = align;
-  document.getElementById('closing-digit').style.marginBottom = mb;
-  document.getElementById('chiral-indicator').style.alignSelf = align;
-  document.getElementById('chiral-indicator').style.marginBottom = mb;
+  var cd = document.getElementById('closing-digit');
+  var ci = document.getElementById('chiral-indicator');
+  if (multiLine) {
+    cd.style.alignSelf = ''; cd.style.marginTop = ''; cd.style.marginBottom = '';
+    ci.style.alignSelf = ''; ci.style.marginBottom = '';
+  } else {
+    cd.style.alignSelf = 'flex-start'; cd.style.marginTop = '4px'; cd.style.marginBottom = '0';
+    ci.style.alignSelf = 'center'; ci.style.marginBottom = '6px';
+  }
   updateCodeDisplay();
 }
 
@@ -1979,7 +1985,7 @@ var rollMode = false;
 
 function padCode(raw, expected) { while (raw.length < expected) raw += '0'; return raw; }
 
-function applyDisplay(cursorOverride) {
+function applyDisplay(cursorOverride, fitCam) {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
   raw = padCode(raw, expected);
@@ -1987,11 +1993,11 @@ function applyDisplay(cursorOverride) {
   var r = parseCode(raw);
   if (r.err) return;
   clearError();
-  try { buildSnake(r.digits, false, cursor + 1); } catch(e) {}
+  try { buildSnake(r.digits, !!fitCam, cursor + 1); } catch(e) {}
   updateCodeDisplay();
 }
 
-function applyCode() {
+function applyCode(fitCam) {
   var expected = getLength() - 1;
   var raw = codeInput.value.replace(/\s+/g, '');
   raw = padCode(raw, expected);
@@ -2002,8 +2008,8 @@ function applyCode() {
   var r = parseCode(raw);
   if (r.err) { setError(r.err); codeInput.classList.add('invalid'); return; }
   clearError();
-  if (rollMode) { applyDisplay(); return; }
-  try { buildSnake(r.digits, false); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
+  if (rollMode) { applyDisplay(undefined, fitCam); return; }
+  try { buildSnake(r.digits, !!fitCam); } catch(e) { setError('Render error: ' + e.message); console.error(e); }
 }
 
 
