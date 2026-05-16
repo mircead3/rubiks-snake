@@ -482,7 +482,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'dfbf50f';
+var _VERSION = 'd671d8c';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -722,9 +722,16 @@ function toggleCollisionMode() {
 function _syncRadiusInput() {
   var inp = document.getElementById('tube-radius');
   inp.readOnly = !(_tubeMode || _lineMode);
+  inp.style.opacity = (_tubeMode || _lineMode) ? '' : '0.35';
   if (_tubeMode) { inp.min = '0.02'; inp.value = _tubeRadius; }
   else if (_lineMode) { inp.min = '0.01'; inp.value = _lineRadius; }
   else { inp.min = '0.02'; }
+}
+
+function _syncNumbersBtn() {
+  var btn = document.getElementById('toggle-numbers');
+  btn.disabled = _tubeMode || _lineMode;
+  btn.title = (_tubeMode || _lineMode) ? '' : 'Show segment numbers';
 }
 
 function toggleTubeMode() {
@@ -732,7 +739,7 @@ function toggleTubeMode() {
   if (_tubeMode && _lineMode) { _lineMode = false; _setBtnActive('toggle-line', false); }
   _setBtnActive('toggle-tube', _tubeMode);
   _syncRadiusInput();
-  document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
+  _syncNumbersBtn();
   _rebuildCurrentView();
 }
 
@@ -741,7 +748,7 @@ function toggleLineMode() {
   if (_lineMode && _tubeMode) { _tubeMode = false; _setBtnActive('toggle-tube', false); }
   _setBtnActive('toggle-line', _lineMode);
   _syncRadiusInput();
-  document.getElementById('toggle-numbers').disabled = _tubeMode || _lineMode;
+  _syncNumbersBtn();
   _rebuildCurrentView();
 }
 
@@ -2341,6 +2348,7 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && _co
 
 var autoRotate = true;
 _setBtnActive('toggle-autorotate', true);
+_syncRadiusInput();
 document.getElementById('toggle-autorotate').addEventListener('click', function() {
   autoRotate = !autoRotate;
   _setBtnActive('toggle-autorotate', autoRotate);
