@@ -317,7 +317,7 @@ span.cursor-mark {
 <div id="ui">
   <div id="controls-row">
     <input id="name-input" type="text" placeholder="name" autocomplete="off" spellcheck="false">
-    <input id="length-input" type="number" min="2" max="200" value="24" readonly>
+    <input id="length-input" type="number" min="2" max="400" value="24" readonly>
     <div id="code-wrapper">
       <textarea id="code-input" rows="1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly></textarea>
       <div id="code-overlay" aria-hidden="true"></div>
@@ -482,7 +482,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'd671d8c';
+var _VERSION = '3810625';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1071,7 +1071,7 @@ function isChiral(digits, cd) {
 // All joint rotation matrices have det=+1, so R = B_rot[j]*A_rot[0]^T is always
 // a proper rotation. We just need to find a j where R maps ALL transforms correctly.
 // This handles non-cyclic symmetries (e.g. the ball's cube symmetry group).
-// Complexity: O(N^3) — fast enough for N≤200.
+// Complexity: O(N^3) — fast enough for N≤400.
 function isChiralGeometric(transforms, digits) {
   // A shape is geometrically chiral if it cannot be superimposed on its mirror image
   // by a proper rotation + translation.  The mirror image is the swap13 chain.
@@ -1912,7 +1912,7 @@ function clearError() {
   updateCodeDisplay();
 }
 
-var MAX_SEGMENTS = 200;
+var MAX_SEGMENTS = 400;
 function getLength() {
   var v = parseInt(lengthInput.value, 10);
   if (isNaN(v) || v < 2) return 24;
