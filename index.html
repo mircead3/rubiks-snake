@@ -10,7 +10,7 @@ body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-se
 canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; pointer-events:none; }
 
 #ui {
-  position:absolute; top:20px; left:412px; right:280px;
+  position:absolute; top:20px; left:170px; right:280px;
   text-align:center; user-select:none; white-space:nowrap;
 }
 #right-panel {
@@ -20,7 +20,7 @@ canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; p
 }
 #right-panel > * { pointer-events:all; }
 #btn-column {
-  position:absolute; top:20px; left:284px; width:fit-content;
+  position:absolute; top:20px; left:8px; width:fit-content;
   display:flex; flex-direction:column; align-items:stretch; gap:4px;
   pointer-events:none; user-select:none;
 }
@@ -35,6 +35,17 @@ canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; p
   margin-bottom:2px; opacity:0.85; pointer-events:none;
 }
 .col-sep { height:1px; background:rgba(140,140,200,0.2); margin:2px 0; pointer-events:none; }
+#collections-menu {
+  position:fixed; z-index:10; display:none; flex-direction:column; gap:2px;
+  background:rgba(20,20,45,0.97); border:1px solid rgba(140,140,255,0.3);
+  border-radius:6px; padding:4px; min-width:160px;
+}
+.coll-item {
+  padding:5px 10px; border-radius:4px; cursor:pointer; text-align:left;
+  color:#aa8844; font-size:11px; background:none; border:none; width:100%;
+}
+.coll-item:hover { background:rgba(70,55,15,0.8); color:#ccaa66; }
+.coll-item.active { background:rgba(45,35,10,0.9); color:#ddbb77; }
 #controls-row {
   display:flex; align-items:center; gap:8px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
@@ -125,7 +136,7 @@ span.cursor-mark {
 
 
 #left-panel {
-  position:absolute; top:20px; left:16px;
+  position:absolute; top:55px; left:136px;
   display:flex; flex-direction:column; align-items:flex-start; gap:6px;
   pointer-events:none; user-select:none; width:260px;
   max-height:calc(100vh - 40px); overflow:hidden;
@@ -280,6 +291,8 @@ span.cursor-mark {
   <div id="col-title">Rubik's Snake</div>
   <div class="col-sep"></div>
   <button class="btn" onclick="document.getElementById('help-modal').classList.add('open')" title="Help">? Help</button>
+  <button class="btn" id="collections-btn" title="Show collections">Collections</button>
+  <label class="btn" style="cursor:pointer;">Load file<input type="file" id="file-input" style="display:none" multiple></label>
   <div class="col-sep"></div>
   <button class="btn" id="btn-save" title="Save figure to active user list" onclick="saveFigure()">Save</button>
   <button class="btn" id="btn-copy" title="Copy code to clipboard">Copy</button>
@@ -346,18 +359,13 @@ span.cursor-mark {
   </div>
 </div>
 
+<div id="collections-menu"></div>
+
 <div id="left-panel">
-  <div id="library-section">
-    <div class="panel-label">Collections</div>
-    <div id="builtin-tabs"></div>
-  </div>
-  <div class="panel-divider"></div>
-  <div id="user-section">
-    <label class="btn" style="cursor:pointer;display:inline-block;">Load file<input type="file" id="file-input" style="display:none" multiple></label>
-    <div id="user-tabs"></div>
-  </div>
+  <div id="builtin-tabs" style="display:none"></div>
+  <div id="user-tabs"></div>
   <div id="active-figures"></div>
-  <div id="my-list-section">
+  <div id="my-list-section" style="display:none">
     <div id="my-list-header">
       <span class="panel-label" style="margin:0;white-space:nowrap">My list:</span>
       <input id="my-list-name" type="text" value="my_figures" autocomplete="off" spellcheck="false">
@@ -474,7 +482,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'a0594af';
+var _VERSION = 'dfbf50f';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1928,7 +1936,7 @@ function updateCodeDisplay() {
 }
 
 function autoResizeCode() {
-  var chars = Math.min(getLength() - 1, 36);
+  var chars = Math.min(getLength() - 1, 50);
   codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 23px)';
   codeInput.style.height = 'auto';
   codeInput.style.height = codeInput.scrollHeight + 'px';
@@ -2288,6 +2296,49 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ─── COLLECTIONS MENU ──────────────────────────────────────────────────────────
+var _collectionsOpen = false;
+
+function _syncCollectionsBtn() {
+  var anyActive = document.querySelector('#builtin-tabs .builtin-tab.active') !== null;
+  _setBtnActive('collections-btn', anyActive || _collectionsOpen);
+}
+
+function _closeCollectionsMenu() {
+  document.getElementById('collections-menu').style.display = 'none';
+  _collectionsOpen = false;
+  _syncCollectionsBtn();
+}
+
+document.getElementById('collections-btn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (_collectionsOpen) { _closeCollectionsMenu(); return; }
+  var menu = document.getElementById('collections-menu');
+  menu.innerHTML = '';
+  document.querySelectorAll('#builtin-tabs .builtin-tab').forEach(function(tab) {
+    var item = document.createElement('button');
+    item.className = 'coll-item' + (tab.classList.contains('active') ? ' active' : '');
+    item.textContent = tab.textContent;
+    item.title = tab.title;
+    item.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      tab.click();
+      _closeCollectionsMenu();
+      setTimeout(_syncCollectionsBtn, 0);
+    });
+    menu.appendChild(item);
+  });
+  var rect = this.getBoundingClientRect();
+  menu.style.left = (rect.right + 8) + 'px';
+  menu.style.top = rect.top + 'px';
+  menu.style.display = 'flex';
+  _collectionsOpen = true;
+  _setBtnActive('collections-btn', true);
+});
+
+document.addEventListener('click', function() { if (_collectionsOpen) _closeCollectionsMenu(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && _collectionsOpen) _closeCollectionsMenu(); });
+
 var autoRotate = true;
 _setBtnActive('toggle-autorotate', true);
 document.getElementById('toggle-autorotate').addEventListener('click', function() {
@@ -2352,7 +2403,9 @@ var _activeListTab = null;
 var _myListFigures = [];
 
 function _updateDownload() {
-  document.getElementById('btn-download').disabled = _myListFigures.length === 0;
+  var empty = _myListFigures.length === 0;
+  document.getElementById('btn-download').disabled = empty;
+  document.getElementById('my-list-section').style.display = empty ? 'none' : '';
 }
 
 function _createFigureBtn(fig, onDelete) {
