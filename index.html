@@ -484,7 +484,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '7324623';
+var _VERSION = '4352ec1';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1764,7 +1764,10 @@ function buildSnake(digits, fitCam, dimFrom) {
     var size = new THREE.Vector3();
     box.getSize(size);
     var maxDim = Math.max(size.x, size.y, size.z);
-    var dist = (maxDim / 2) / Math.tan(camera.fov * Math.PI / 360) * 1.65;
+    var distBox = (maxDim / 2) / Math.tan(camera.fov * Math.PI / 360) * 1.65;
+    var n = transforms.length;
+    var density = n / Math.pow(Math.max(maxDim, 1), 3);
+    var dist = Math.max(distBox, n * 0.1, density > 1 ? distBox * Math.pow(density, 0.75) : 0);
     camera.position.set(dist * 0.55, dist * 0.35, dist * 0.85);
     _cameraTarget.set(0, 0, 0);
     camera.lookAt(0, 0, 0);
