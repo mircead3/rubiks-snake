@@ -47,7 +47,7 @@ canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; p
 .coll-item:hover { background:rgba(70,55,15,0.8); color:#ccaa66; }
 .coll-item.active { background:rgba(45,35,10,0.9); color:#ddbb77; }
 #controls-row {
-  display:flex; align-items:center; gap:8px; justify-content:center;
+  display:flex; align-items:flex-start; gap:8px; justify-content:center;
   pointer-events:all; margin-bottom:8px;
 }
 #controls-row label { color:#8899cc; font-size:12px; }
@@ -94,6 +94,8 @@ span.cursor-mark {
   padding:4px 9px 4px 12px; word-break:break-all; white-space:pre-wrap;
   overflow:hidden; box-sizing:border-box; line-height:inherit;
 }
+#closing-digit, #chiral-indicator { align-self:flex-end; }
+#closing-digit { margin-bottom:5px; }
 #closing-digit {
   font-family:'Courier New',monospace; font-size:15px; letter-spacing:3px;
   color:#d8d8ff; opacity:0; transition:opacity 0.2s;
@@ -482,7 +484,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = '3810625';
+var _VERSION = 'c9e9a04';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1946,7 +1948,15 @@ function autoResizeCode() {
   var chars = Math.min(getLength() - 1, 50);
   codeInput.style.width = 'calc(' + chars + ' * (1ch + 3px) + 23px)';
   codeInput.style.height = 'auto';
-  codeInput.style.height = codeInput.scrollHeight + 'px';
+  var sh = codeInput.scrollHeight;
+  codeInput.style.height = sh + 'px';
+  var multiLine = sh > 35;
+  var align = multiLine ? '' : 'center';
+  var mb    = multiLine ? '' : '6px';
+  document.getElementById('closing-digit').style.alignSelf    = align;
+  document.getElementById('closing-digit').style.marginBottom = mb;
+  document.getElementById('chiral-indicator').style.alignSelf = align;
+  document.getElementById('chiral-indicator').style.marginBottom = mb;
   updateCodeDisplay();
 }
 
