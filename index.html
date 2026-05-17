@@ -10,7 +10,7 @@ body { background:#111118; overflow:hidden; font-family:'Segoe UI',Arial,sans-se
 canvas { display:block; touch-action:none; position:fixed; inset:0; z-index:2; pointer-events:none; }
 
 #ui {
-  position:absolute; top:20px; left:170px; right:280px; z-index:1;
+  position:absolute; top:20px; left:270px; right:280px; z-index:1;
   text-align:center; user-select:none; white-space:nowrap; pointer-events:none;
 }
 #right-panel {
@@ -486,7 +486,7 @@ renderer.domElement.addEventListener('webglcontextlost', function(e) {
   document.getElementById('error-msg').textContent = 'WebGL context lost – try reloading the page.';
 }, false);
 
-var _VERSION = 'b43a962';
+var _VERSION = '7baef02';
 
 var scene = new THREE.Scene();
 // scene.background left null so canvas is transparent over the body background
@@ -1874,12 +1874,15 @@ codeInput.addEventListener('paste', function(e) {
   var cur = codeInput.value;
   var s0 = codeInput.selectionStart, s1 = codeInput.selectionEnd;
   var newCode = cur.slice(0, s0) + filtered + cur.slice(s1);
-  var needed = newCode.length;
-  if (needed > getLength() - 1) {
-    var newLen = Math.min(needed + 1, MAX_SEGMENTS);
-    lengthInput.value = newLen;
-    _lastAppliedLength = newLen;
-    newCode = newCode.slice(0, newLen - 1);
+  var max = getLength() - 1;
+  if (newCode.length > max) {
+    if (!rollMode) {
+      var newLen = Math.min(newCode.length + 1, MAX_SEGMENTS);
+      lengthInput.value = newLen;
+      _lastAppliedLength = newLen;
+      max = newLen - 1;
+    }
+    newCode = newCode.slice(0, max);
   }
   codeInput.value = newCode;
   codeInput.selectionStart = codeInput.selectionEnd = Math.min(s0 + filtered.length, newCode.length);
